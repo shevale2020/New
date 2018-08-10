@@ -1,0 +1,349 @@
+using DNAPGateway.EFLibrary;
+using System;
+using System.Collections.Generic;
+using System.Configuration;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using WinSCP;
+
+namespace DNAPGateway.SFTPCommunicator
+{
+    class SFTPHelper : IDisposable
+    {
+        private WinSCP.Session _sftpSession = null;
+        public Exception LastException { get; private set; }
+        public SFTPHelper()
+        {
+            Globals.DBLogger.Info("SFTPHelper: Opening SFTP Session ...");
+            _sftpSession = new Session();
+            // Connect
+            _sftpSession.ExecutablePath = Globals.WinSCPExePath;
+            _sftpSession.Open(this.GetSFTPOptions());
+        }
+
+        public bool ListSFTPDirectory(string sftpPath, ref RemoteDirectoryInfo sftpDirInfo)
+        {
+            Globals.DBLogger.InfoFormat("SFTPHelper: Listing SFTP Folder [{0}] ...", sftpPath);
+            //check if directory is available
+            if (string.IsNullOrWhiteSpace(sftpPath))
+                return false;
+
+            //Return list directory
+            sftpDirInfo = _sftpSession.ListDirectory(sftpPath);
+            return true;
+        }
+
+        public bool CreateSFTPFolder(string sftpFolderName)
+        {
+            try
+            {
+                sftpFolderName = sftpFolderName.TrimEnd('/');
+                if (!_sftpSession.FileExists(sftpFolderName))
+                {
+                    Globals.DBLogger.InfoFormat("SFTPHelper: Creating SFTP Folder [{0}] ...", sftpFolderName);
+                    _sftpSession.CreateDirectory(sftpFolderName);
+                    return true;
+                }
+                return false;
+            }
+            catch (Exception)
+            {
+                return false;
+            }            
+        }
+
+        public bool EnumerateSFTPFiles(string sftpFolder, string search, ref IEnumerable<RemoteFileInfo> sftpFiles)
+        {
+            Globals.DBLogger.InfoFormat("SFTPHelper: Enumerating SFTP Files in [{0}] with Search [{1}] ...", sftpFolder, search);
+            //return false if folder is not specified
+            if (string.IsNullOrWhiteSpace(sftpFolder))
+                return false;
+
+            //enumerate folder as per search provided
+            sftpFiles = _sftpSession.EnumerateRemoteFiles(sftpFolder, search, this.GetEnumerationOptions());
+            if (sftpFiles.Count() == 0)
+            {
+                return false;
+            }
+            else
+            {
+                return true;
+            }
+        }
+        //Added function to download single file with different filename 2018-02-19
+        public bool DownloadSFTPFile(string sftpSourceFileName, string localTargetFileName, ref TransferOperationResult transferResult)
+        {
+            Globals.DBLogger.InfoFormat("SFTPHelper: Downloading SFTP Files from [{0}] to [{1}] ...", sftpSourceFileName, localTargetFileName);
+            //Check input variables and take appropriate actions wherever required
+            if (string.IsNullOrWhiteSpace(sftpSourceFileName) || string.IsNullOrWhiteSpace(localTargetFileName))
+                return false;
+            //if (!System.IO.Directory.Exists(localFolder))
+            //    System.IO.Directory.CreateDirectory(localFolder);
+
+            //Try transfer
+            transferResult = _sftpSession.GetFiles(sftpSourceFileName, localTargetFileName, false, this.GetTransferOptions());
+            try
+            {
+                //Check for exceptions
+                transferResult.Check();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LastException = ex;
+                Globals.DBLogger.Error(string.Format("SFTPHelper: Downloading SFTP File Exception [{0}]:[{1}] ...", ex.Source, ex.Message), ex);
+                return false;
+            }
+        }
+
+
+        public bool DownloadSFTPFiles(string sftpSourceFiles, string localFolder, ref TransferOperationResult transferResult)
+        {
+            Globals.DBLogger.InfoFormat("SFTPHelper: Downloading SFTP Files from [{0}] to [{1}] ...", sftpSourceFiles, localFolder);
+            //Check input variables and take appropriate actions wherever required
+            if (string.IsNullOrWhiteSpace(sftpSourceFiles) || string.IsNullOrWhiteSpace(localFolder))
+                return false;
+            //if (!System.IO.Directory.Exists(localFolder))
+            //    System.IO.Directory.CreateDirectory(localFolder);
+
+            //Try transfer
+            transferResult = _sftpSession.GetFiles(sftpSourceFiles, localFolder, false, this.GetTransferOptions());
+            try
+            {
+                //Check for exceptions
+                transferResult.Check();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LastException = ex;
+                Globals.DBLogger.Error(string.Format("SFTPHelper: Downloading SFTP Files Exception [{0}]:[{1}] ...", ex.Source, ex.Message), ex);
+                return false;
+            }
+        }
+
+        public bool UploadLocalFile(string localSourceFile, string sftpTargetFile, ref TransferOperationResult transferResult)
+        {
+            Globals.DBLogger.InfoFormat("SFTPHelper: Uploading SFTP Files from [{0}] to [{1}] ...", localSourceFile, sftpTargetFile);
+            //Check input variables and take appropriate actions wherever required
+            if (string.IsNullOrWhiteSpace(localSourceFile) || string.IsNullOrWhiteSpace(sftpTargetFile))
+                return false;
+
+            FileInfo fiSource = new FileInfo(localSourceFile);
+            //Exit with failure if source file is not available
+            if (!fiSource.Exists)
+                return false;
+            //Delete target file if exists
+            if (_sftpSession.FileExists(sftpTargetFile))
+            {
+                RemoteFileInfo sftpFileInfo;
+                sftpFileInfo = _sftpSession.GetFileInfo(sftpTargetFile);
+                if (!sftpFileInfo.IsDirectory)
+                {
+                    //Delete only if it is file and not directory
+                    RemovalOperationResult rmSFTPResult = _sftpSession.RemoveFiles(sftpTargetFile);
+                    try
+                    {
+                        rmSFTPResult.Check();
+                    }
+                    catch (Exception ex)
+                    {
+                        LastException = ex;
+                        Globals.DBLogger.Error(string.Format("SFTPHelper: Uploading SFTP Files Exception [{0}]:[{1}] ...", ex.Source, ex.Message), ex);
+                        return false;
+                    }
+                }
+            }
+
+            //Try transfer
+            transferResult = _sftpSession.PutFiles(localSourceFile, sftpTargetFile, false, this.GetTransferOptions());
+            try
+            {
+                //Check for exceptions
+                transferResult.Check();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LastException = ex;
+                Globals.DBLogger.Error(string.Format("SFTPHelper: Uploading SFTP Files Exception [{0}]:[{1}] ...", ex.Source, ex.Message), ex);
+                return false;
+            }
+        }
+
+        public bool MoveOrUploadFile(string sftpSourceFile, string sftpTargetFile, string localSourceFile)
+        {
+            Globals.DBLogger.InfoFormat("SFTPHelper: Moving SFTP Files from [{0}] to [{1}] Optional upload [{2}] ...", sftpSourceFile, sftpTargetFile, localSourceFile);
+            //check if any of the parameters are missing
+            if ((string.IsNullOrWhiteSpace(sftpSourceFile) && string.IsNullOrWhiteSpace(localSourceFile))
+                || string.IsNullOrWhiteSpace(sftpTargetFile))
+            {
+                return false;
+            }
+            try
+            {
+                RemoteFileInfo sftpFileInfo;
+                //Move SFTP file to target location
+                if (_sftpSession.FileExists(sftpSourceFile))
+                {
+                    //Delete target file if exists
+                    if (_sftpSession.FileExists(sftpTargetFile))
+                    {
+                        sftpFileInfo = _sftpSession.GetFileInfo(sftpTargetFile);
+                        if (!sftpFileInfo.IsDirectory)
+                        {
+                            //Delete only if it is file and not directory
+                            RemovalOperationResult rmSFTPResult = _sftpSession.RemoveFiles(sftpTargetFile);
+                            try
+                            {
+                                rmSFTPResult.Check();
+                            }
+                            catch (Exception ex)
+                            {
+                                LastException = ex;
+                                Globals.DBLogger.Error(string.Format("SFTPHelper: Moving SFTP Files Exception [{0}]:[{1}] ...", ex.Source, ex.Message), ex);
+                                return false;
+                            }
+                        }
+                    }
+
+                    //Move file
+                    _sftpSession.MoveFile(sftpSourceFile, sftpTargetFile);
+                    return true;
+                }
+                //Upload local file
+                else if (!_sftpSession.FileExists(sftpSourceFile))
+                {
+                    FileInfo fiSource = new FileInfo(localSourceFile);
+                    //Exit with failure if source file is not available
+                    if (!fiSource.Exists)
+                        return false;
+                    //Delete target file if exists
+                    if (_sftpSession.FileExists(sftpTargetFile))
+                    {
+                        sftpFileInfo = _sftpSession.GetFileInfo(sftpTargetFile);
+                        if (!sftpFileInfo.IsDirectory)
+                        {
+                            //Delete only if it is file and not directory
+                            RemovalOperationResult rmSFTPResult = _sftpSession.RemoveFiles(sftpTargetFile);
+                            try
+                            {
+                                rmSFTPResult.Check();
+                            }
+                            catch (Exception ex)
+                            {
+                                LastException = ex;
+                                Globals.DBLogger.Error(string.Format("SFTPHelper: Moving SFTP Files Exception [{0}]:[{1}] ...", ex.Source, ex.Message), ex);
+                                return false;
+                            }
+                        }
+                    }
+                    //Try transfer
+                    TransferOperationResult transferResult;
+                    transferResult = _sftpSession.PutFiles(localSourceFile, sftpTargetFile, false, this.GetTransferOptions());
+                    try
+                    {
+                        //Check for exceptions
+                        transferResult.Check();
+                        return true;
+                    }
+                    catch (Exception ex)
+                    {
+                        LastException = ex;
+                        Globals.DBLogger.Error(string.Format("SFTPHelper: Moving SFTP Files Exception [{0}]:[{1}] ...", ex.Source, ex.Message), ex);
+                        return false;
+                    }
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                LastException = ex;
+                Globals.DBLogger.Error(string.Format("SFTPHelper: Moving SFTP Files Exception [{0}]:[{1}] ...", ex.Source, ex.Message), ex);
+                return false;
+            }
+        }
+
+        #region Private Functions used internally
+        private SessionOptions GetSFTPOptions()
+        {
+            //Protocol = Protocol.Sftp,
+            //HostName = "sftp.wnsgs.com",
+            //UserName = "WNS_ISS",
+            //Password = "may#2017",:
+            //SshHostKeyFingerprint = "ssh-ed25519 256 a8:86:a3:ef:cb:e8:38:dc:9a:32:f2:9f:6c:f3:cd:aa"
+
+            string sftpHostName = ConfigurationManager.AppSettings["SFTPHostName"];
+            string sftpUserName = ConfigurationManager.AppSettings["SFTPUserName"];
+            string sftpPassword = ConfigurationManager.AppSettings["SFTPPassword"];
+            string sftpSshHostKeyFingerprint = ConfigurationManager.AppSettings["SFTPSshHostKeyFingerprint"];
+
+            // Setup session options
+            SessionOptions sessionOptions = new SessionOptions
+            {
+                Protocol = Protocol.Sftp,
+                HostName = sftpHostName,
+                UserName = sftpUserName,
+                Password = sftpPassword,
+                SshHostKeyFingerprint = sftpSshHostKeyFingerprint,
+                Timeout = new TimeSpan(0, 1, 0)
+            };
+            return sessionOptions;
+
+        }
+
+        private TransferOptions GetTransferOptions()
+        {
+            TransferOptions transferOptions = new TransferOptions();
+            transferOptions.TransferMode = TransferMode.Binary;
+            return transferOptions;
+        }
+
+        private EnumerationOptions GetEnumerationOptions()
+        {
+            EnumerationOptions enumerationOptions = new EnumerationOptions();
+            return enumerationOptions;
+        }
+        #endregion
+
+
+        #region IDisposable Support
+        private bool disposedValue = false; // To detect redundant calls
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    // TODO: dispose managed state (managed objects).
+                    Globals.DBLogger.Info("SFTPHelper: Closing SFTP Session ...");
+                    _sftpSession.Close();
+                }
+
+                // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
+                // TODO: set large fields to null.
+
+                disposedValue = true;
+            }
+        }
+
+        // TODO: override a finalizer only if Dispose(bool disposing) above has code to free unmanaged resources.
+        // ~SFTPHelper() {
+        //   // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+        //   Dispose(false);
+        // }
+
+        // This code added to correctly implement the disposable pattern.
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+            Dispose(true);
+            // TODO: uncomment the following line if the finalizer is overridden above.
+            // GC.SuppressFinalize(this);
+        }
+        #endregion
+    }
+}
