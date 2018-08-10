@@ -1,0 +1,25 @@
+S.No	Source	Source System	Master Data Type	Master File CodeName	Frequency	File content	DNC Time	WNS Program
+1	DNC	People Soft	Organization Master	Orgmas	1 Per Month	"Golive: Full
+Ongoing: Full Load
+"	First Hours of WD 0 of New month new file is going to come.	10:00 AM EST (TBD)
+2	DNC	People Soft	Currency Master	CurrMas	1 Per Month	"Golive: Last 6 Months
+Ongoing: Current month  (Day+1 when currency master is updated in Peoplesoft)
+
+"	Day+1 when currency master is updated in Peoplesoft	9:30 AM EST (TBD)
+3	DNC	People Soft	Vendor Master	VendorMas	1 Daily	"Golive: Full
+Ongoing: Incremental
+"	6AM EST	8:30 AM EST
+4	DNC	People Soft	GL Code Master	GLCode	1 Daily	"Golive: Full
+Ongoing: Incremental
+"	7AM EST	9:00 AM EST
+5	WNS	TRAC - AP Tool	Invoice Outbound File	PS_Posting	6 Time Daily	"All New Transactions Only
+"	Every 4 hours starting at 09 AM EST	Every 4 hours starting at 08 AM EST
+6	DNC	People Soft	Voucher Acknowledgement	VoucherAck	6 Time Daily	"All New & Errors corrected Transactions 
+"	Every 4 hours starting at 11 AM EST	Every 4 hours starting at 12 PM EST
+7	WNS	TRAC - AP Tool	Outbound from TRAC TO AWS (Image & Meta data )	AWS_Image	6 Time Daily	"All New & Erros corrected Transactions 
+"	Every 4 hours starting at 03:00 PM EST	Every 4 hours starting at 02:00 PM EST
+8	WNS	AWS	Image Acknowledgement-AWS	PostAckFailure	3 Time Daily	"All New Images sent
+"	Every 4 hours starting at 04:00 PM EST	Every 4 hours starting at 4:30 PM EST
+9	DNC	AD	HR Herarichy Master	HRH	Once per day	All list of users to be part of TRAC users for the firsst time. Going forward it will be as per request registered in Jira	6AM EST	9:00 AM EST
+10	DNC	JIRA	Approval Access & Matrix	AppMat	Once per day	Manually created master as per WNS format during Go-Live after which it will flow through Jira	As it comes	TBD
+11	DNC	JIRA	Coder Access	Coder	Once per day	Manually created master as per WNS format during Go-Live after which it will flow through Jira	As it comes	TBD
