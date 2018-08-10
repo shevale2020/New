@@ -1,0 +1,111 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace DNAPGateway.EFLibrary
+{
+    public static class EFLibraryUtils
+    {
+        public static bool CreateEmptyDB()
+        {
+            try
+            {
+                Globals.FileLogger.Info("EFLibraryUtils.CreateEmptyDB: Creating Context");
+                using (GatewayDBContext db = new GatewayDBContext())
+                {
+                    Globals.FileLogger.Info("EFLibraryUtils.CreateEmptyDB: Creating Database if does not exist");
+                    db.Database.CreateIfNotExists();
+                    db.SaveChanges();
+                    Globals.FileLogger.Info("EFLibraryUtils.CreateEmptyDB: Database created successfully");
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Globals.FileLogger.Error($"EFLibraryUtils.CreateEmptyDB: Add Record Failed with Error: {ex.Message}", ex);
+                //Globals.FileLogger.Error(ex.StackTrace);
+                return false;
+            }
+        }
+
+        public static void VerifyMetadata()
+        {
+            try
+            {
+                using (GatewayDBContext dbContext = new GatewayDBContext())
+                {
+                    //If entities table doesnt have data, it means that database is not yet initialized
+                    //Populate inbound entities
+                    if (dbContext.InboundEntities.Count() == 0)
+                        EFLibraryUtils.ExecuteMetadataScript(dbContext, @"dbo.InboundEntities.data.sql");
+                    //Populate inbound entity fields
+                    if (dbContext.InboundEntityFields.Count() == 0)
+                        EFLibraryUtils.ExecuteMetadataScript(dbContext, @"dbo.InboundEntityFields.data.sql");
+                    //Populate outbound entities
+                    if (dbContext.OutboundEntities.Count() == 0)
+                        EFLibraryUtils.ExecuteMetadataScript(dbContext, @"dbo.OutboundEntities.data.sql");
+                    //Populate Scanned Invoice entities
+                    if (dbContext.ScannedPOBoxes.Count() == 0)
+                        EFLibraryUtils.ExecuteMetadataScript(dbContext, @"dbo.ScannedPOBoxes.data.sql");
+                    //Populate Schedule entities
+                    if (dbContext.ExecutionSchedules.Count() == 0)
+                        EFLibraryUtils.ExecuteMetadataScript(dbContext, @"dbo.ExecutionSchedules.data.sql");
+                }
+            }
+            catch (Exception ex)
+            {
+                Globals.FileLogger.Error($"EFLibraryUtils.PopulateMetadata: Exception with Error: {ex.Message}", ex);
+                //Globals.FileLogger.Error(ex.StackTrace);
+            }
+        }
+
+
+        public static void ExecuteMetadataScript(GatewayDBContext dbContext, string fileName)
+        {
+            try
+            {
+                Globals.FileLogger.Info($"EFLibraryUtils.ExecuteMetadataScript: Executing Initialization Script {fileName}.");
+                FileInfo fo = new FileInfo(Path.Combine(Globals.GatewayExePath, fileName));
+                Globals.FileLogger.Info($"EFLibraryUtils.ExecuteMetadataScript: Executing Initialization Script {fo.FullName}.");
+                try
+                {
+                    using (StreamReader sr = fo.OpenText())
+                    {
+                        dbContext.Database.ExecuteSqlCommand(sr.ReadToEnd());
+                        dbContext.SaveChanges();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Globals.FileLogger.Error($"EFLibraryUtils.ExecuteMetadataScript: One-Go Script execution failed. Now trying line by line execution. : {ex.Message}.", ex);
+                    using (StreamReader sr = fo.OpenText())
+                    {
+                        string line;
+                        while ((line = sr.ReadLine()) != null)
+                        {
+                            try
+                            {
+                                dbContext.Database.ExecuteSqlCommand(line);
+                            }
+                            catch (Exception exc)
+                            {
+                                Globals.FileLogger.Error($"EFLibraryUtils.ExecuteMetadataScript: Exception while executing initialization script : {exc.Message}.", exc);
+                                //Globals.FileLogger.Error(ex.StackTrace);
+                            }
+                        }
+                        dbContext.SaveChanges();
+                    }
+                }
+                Globals.FileLogger.Info($"EFLibraryUtils.ExecuteMetadataScript: Completed execution of initialization script from location {fo.FullName}.");
+            }
+            catch (Exception ex)
+            {
+                Globals.FileLogger.Error($"EFLibraryUtils.ExecuteMetadataScript: Exception while executing initialization script : {ex.Message}.", ex);
+                //Globals.FileLogger.Error(ex.StackTrace);
+            }
+        }
+    }
+}
