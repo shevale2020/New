@@ -1,0 +1,779 @@
+using System;
+using System.Collections.Generic;
+using System.Configuration;
+using System.IO;
+using System.Linq;
+using System.Net.Mail;
+using System.Reflection;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+
+namespace DNAPGateway.EFLibrary
+{
+    public class EmailGenerator
+    {
+        private StringBuilder _sbBody = null;
+        private SEEmailMessage _message = null;
+        private static object mailLock = new object();
+        private string _emailFooter = "";
+
+        public EmailGenerator()
+        {
+            _sbBody = new StringBuilder(200);
+            _message = new SEEmailMessage();
+
+            //Add styling elements
+            _sbBody.AppendLine("<style>");
+            _sbBody.AppendLine("table {border-collapse: collapse;}");
+            _sbBody.AppendLine("table, th, td {border: 1px solid black;}");
+            _sbBody.AppendLine("th, td {padding: 5px; text-align: left;}");
+            _sbBody.AppendLine("</style>");
+
+            //Set From, To and CC for an email
+            _message.From = Globals.MailFrom;
+            _message.To = Globals.MailToInfo;
+            _message.CC = Globals.MailCC;
+            _message.CreatedTime = DateTime.Now;
+            _message.IsSent = false;
+            //Define message footer
+            _emailFooter = $"<p>Regards,</p><p>DelawareNorth AP Team</p><p><small>Gateway Version:[{Globals.GatewayVersion}]</small></p>";
+        }
+
+        public bool GenerateMissingControlFileMessage(string entityID, string entityName, string fileName, string fileFullPath)
+        {
+            //File is not downloaded but control file is missingg
+            //Send exception email
+            //Create email body
+            _sbBody.AppendLine("<p>Dear <strong>Team</strong>,</p>");
+            _sbBody.AppendLine("<p>We have received following file on SFTP Folder but does not have corresponding control file. Data included in this file is being ignored.</p>");
+            _sbBody.AppendFormat("<p>Please include this data in subsequent upload of {0}.</p>", entityName);
+            _sbBody.AppendLine("<table><tr><th>File Name</th><th>File Path</th></tr>");
+            _sbBody.AppendFormat("<tr><td>{0}</td><td>{1}</td></tr>", fileName, fileFullPath);
+            _sbBody.AppendLine("</table>");
+            _sbBody.AppendLine(_emailFooter);
+            //Set message field values
+            //messagex.MessageID = Guid.NewGuid();
+            _message.Subject = string.Format("INBOUND FILE ISSUE: Missing Control File for {0}:{1} => {2}", entityID, entityName, fileName);
+            _message.BodyText = _sbBody.ToString();
+
+            _message.EmailType = "InboundCSV";
+            _message.EmailSubType = entityID;
+            _message.CreatedBy = "Download Inbound Files";
+            _message.To = string.Format("{0};{1}", Globals.MailToPriority, Globals.MailToInfo);
+
+            //Save message
+            using (GatewayDBContext dbContext = new GatewayDBContext())
+            {
+                dbContext.SEEmailMessages.Add(_message);
+                dbContext.SaveChanges();
+            }
+            return true;
+
+        }
+
+        public bool GenerateInboundFileDownloadSummaryMessage(string entityID, string entityName, List<InboundProcessingSummary> summaryList)
+        {
+            //Create email body
+            _sbBody.AppendLine("<p>Dear <strong>Team</strong>,</p>");
+            _sbBody.AppendLine("<p>We have received following files on SFTP Folder.</p>");
+            _sbBody.AppendLine("<table><tr><th>File Name</th><th>File Path</th><th>Workstation</th><th>Message</th></tr>");
+            foreach (InboundProcessingSummary summary in summaryList)
+            {
+                _sbBody.AppendLine($"<tr><td>{summary.InboundFileName}</td><td>{summary.SFTPSourceFilePath}</td><td>{summary.ProcessingWorkstation}</td><td>{summary.ProcessingSummary}</td></tr>");
+            }
+            _sbBody.AppendLine("</table>");
+            _sbBody.AppendLine(_emailFooter);
+            //Set message field values
+            //messagex.MessageID = Guid.NewGuid();
+            _message.Subject = string.Format("Files Received for {0}:{1}", entityID, entityName);
+            _message.BodyText = _sbBody.ToString();
+            _message.EmailType = "InboundCSV";
+            _message.EmailSubType = entityID;
+            _message.CreatedBy = "Download Inbound Files";
+            _message.To = Globals.MailToInfo;
+            //Set sent flag based on settings 2018-01-18
+            _message.IsSent = (!Globals.EnableFileReceivedEmail);
+            //Save message
+            using (GatewayDBContext dbContext = new GatewayDBContext())
+            {
+                dbContext.SEEmailMessages.Add(_message);
+                dbContext.SaveChanges();
+            }
+            return true;
+        }
+
+        public bool GenerateInvoiceDownloadSummaryMessage(Dictionary<string, POBoxInvoiceFileSummary> summaryList, bool multiCtrlFiles)
+        {
+            string controlFileName = "Multiple Control Files", poBox = "";
+            int iTotal = 0, iSuccess = 0, iFailed = 0;
+            //Create email body
+            _sbBody.AppendLine("<p>Dear <strong>Team</strong>,</p>");
+            _sbBody.AppendLine("<p>We have received following Invoice files on SFTP Folder and have been copied to KOFAX folder for processing.</p>");
+            _sbBody.AppendLine("<table><tr><th>PO Box</th><th>Control File</th><th>Invoice File</th><th>Invoice Path</th><th>Metadata Path</th></tr>");
+            foreach (POBoxInvoiceFileSummary summary in summaryList.Values)
+            {
+                _sbBody.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td></tr>",
+                    summary.POBoxName, summary.ControlFileName, summary.InvoiceFileName,
+                    summary.KofaxInvoiceFileFullName, summary.KofaxMetaFileFullName);
+                _sbBody.AppendLine();
+
+                //Set variables for Subject line
+                poBox = summary.POBoxName;
+                if (!multiCtrlFiles)
+                    controlFileName = summary.ControlFileName;
+
+                iTotal++;
+                if (string.IsNullOrWhiteSpace(summary.KofaxInvoiceFileFullName))
+                    iFailed++;
+                else
+                    iSuccess++;
+            }
+            _sbBody.AppendLine("</table>");
+            _sbBody.AppendLine(_emailFooter);
+            //Set message field values
+            //messagex.MessageID = Guid.NewGuid();
+            _message.Subject = string.Format("Invoice Files Received:{0}-[{1}]-[{2}]-[S:{3} F:{4} T:{5}]",
+                ((iFailed > 0) ? "ERRORS" : "SUCCESS"),
+                poBox, controlFileName, iSuccess, iFailed, iTotal);
+            _message.BodyText = _sbBody.ToString();
+            _message.EmailType = "Invoice Files Receipt";
+            _message.EmailSubType = "";
+            _message.CreatedBy = "ScannedPOBoxSync";
+            _message.To = Globals.MailToInfo;
+
+            //Save message
+            using (GatewayDBContext dbContext = new GatewayDBContext())
+            {
+                dbContext.SEEmailMessages.Add(_message);
+                dbContext.SaveChanges();
+            }
+            return true;
+        }
+
+        public bool GenerateInboundProcessingSummaryMessage(List<InboundProcessingSummary> summaryList, bool afterUpload = false)
+        {
+            try
+            {
+                ////Skip function if pre-upload email is not enabled
+                //if (!Globals.EnablePreUploadEmail && !afterUpload)
+                //    return true;
+
+                using (GatewayDBContext dbContext = new EFLibrary.GatewayDBContext())
+                {
+                    InboundProcessingSummary firstSummary = null;
+                    bool bFailed = false; bool bAPOSRelated = false;
+                    //Create email body
+                    _sbBody.AppendLine("<p>Dear <strong>Team</strong>,</p>");
+                    _sbBody.AppendLine("<p>We have received following Inbound files on SFTP Folder and have completed processing for them.</p>");
+                    _sbBody.AppendFormat("<p>Results of processing {0} uploaded to SFTP.</p>", (afterUpload ? "have been" : "are yet to be"));
+                    foreach (InboundProcessingSummary summary in summaryList)
+                    {
+                        _sbBody.AppendLine("<br>");
+                        _sbBody.AppendLine("<table>");
+                        _sbBody.AppendLine("<tr><th>Inbound File Name</th><th>File Path</th><th>Workstation</th><th>Processing Started</th><th>Processing Completed</th></tr>");
+                        _sbBody.Append($"<tr><td>{summary.InboundFileName}</td><td>{summary.SFTPSourceFilePath}<br>{summary.SFTPSuccessFilePath}<br>{summary.SFTPFailedFilePath}</td>");
+                        _sbBody.Append($"<td>{summary.ProcessingWorkstation}</td><td>{summary.ProcessingStartedTime}</td><td>{summary.ProcessingCompletedTime}</td></tr>");
+                        _sbBody.AppendLine("</table>");
+                        _sbBody.AppendLine("<table>");
+                        _sbBody.AppendLine("<tr><th>Success Rows</th><th>Failed Row</th><th>Total Rows</th><th>Inserted</th><th>Updated</th><th>Copied To History</th><th>Processing Summary</th></tr>");
+                        _sbBody.Append($"<tr><td>{summary.RowsSuccessful}</td><td>{summary.RowsFailed}</td><td>{summary.RowsTotal}</td><td>{summary.RowsInserted}</td>");
+                        _sbBody.Append($"<td>{summary.RowsUpdated}</td><td>{summary.RowsCopiedToHistory}</td><td>{ summary.ProcessingSummary}</td></tr>");
+                        _sbBody.AppendLine("</table>");
+                        _sbBody.AppendLine("<hr>");
+
+                        if (summary.RowsFailed > 0)
+                            bFailed = true;
+                        //Set reference
+                        firstSummary = summary;
+                    }
+
+                    if (summaryList.Count == 1)
+                    {
+                        if (firstSummary.RowsFailed == 0 && firstSummary.RowsSuccessful == firstSummary.RowsTotal)
+                        {
+                            _message.Subject = string.Format("Inbound Data:SUCCESS-File processed for Entity:{0} [{1}] (T:{2} S:{3} F:{4})", firstSummary.EntityID, firstSummary.InboundFileName, firstSummary.RowsTotal, firstSummary.RowsSuccessful, firstSummary.RowsFailed);
+                        }
+                        else if (firstSummary.RowsSuccessful > 0 && firstSummary.RowsSuccessful < firstSummary.RowsTotal)
+                        {
+                            _message.Subject = string.Format("Inbound Data:PARTIAL SUCCESS-File processed for Entity:{0} [{1}] (T:{2} S:{3} F:{4})", firstSummary.EntityID, firstSummary.InboundFileName, firstSummary.RowsTotal, firstSummary.RowsSuccessful, firstSummary.RowsFailed);
+                            _message.Attachment1 = (!string.IsNullOrWhiteSpace(firstSummary.LocalFailedFilePath) ? firstSummary.LocalFailedFilePath : "");
+                        }
+                        else
+                        {
+                            _message.Subject = string.Format("Inbound Data:FAILED-File processed for Entity:{0} [{1}] (T:{2} S:{3} F:{4})", firstSummary.EntityID, firstSummary.InboundFileName, firstSummary.RowsTotal, firstSummary.RowsSuccessful, firstSummary.RowsFailed);
+                            _message.Attachment1 = (!string.IsNullOrWhiteSpace(firstSummary.LocalFailedFilePath) ? firstSummary.LocalFailedFilePath : "");
+                        }
+                        //Attach success file as well only for APOS inbound Feeds
+                        if (firstSummary.EntityID.Equals("APOSAckF", StringComparison.OrdinalIgnoreCase)
+                            || firstSummary.EntityID.Equals("APOSAckS", StringComparison.OrdinalIgnoreCase)
+                            || firstSummary.EntityID.Equals("APOSPay", StringComparison.OrdinalIgnoreCase))
+                        {
+                            bAPOSRelated = true;
+                            _message.Attachment2 = (!string.IsNullOrWhiteSpace(firstSummary.LocalSuccessFilePath) ? firstSummary.LocalSuccessFilePath : "");
+                        }
+                    }
+                    else if (summaryList.Count > 1)
+                    {
+                        _message.Subject = string.Format("Inbound Data:Multiple Files processed for Entity:{0}", firstSummary.EntityID);
+                    }
+                    else
+                    {
+                        _sbBody.AppendLine("Nothing to process.");
+                        _message.Subject = string.Format("Inbound Data: No Files to Process for Entity:{0}", firstSummary.EntityID);
+                    }
+                    _sbBody.AppendLine(_emailFooter);
+                    //Set message field values                   
+                    _message.BodyText = _sbBody.ToString();
+                    _message.EmailType = "Inbound Files";
+                    _message.EmailSubType = firstSummary.EntityID;
+                    _message.CreatedBy = "Processing Inbound Files";
+                    //Set address list based on results
+                    _message.To = Globals.MailToInfo;
+                    if (bAPOSRelated)
+                        _message.To = string.Format("{0};{1}", Globals.MailToOpsTeam, _message.To);
+                    if (afterUpload && bFailed)
+                        _message.To = string.Format("{0};{1}", Globals.MailToPriority, _message.To);
+                    //Set sent flag based on settings 2018-01-18
+                    //Skip sending email if pre-upload email is not enabled
+                    _message.IsSent = (!Globals.EnablePreUploadEmail && !afterUpload);
+                    //Save message
+                    dbContext.SEEmailMessages.Add(_message);
+                    dbContext.SaveChanges();
+
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error(string.Format("GenerateInboundProcessingSummaryMessage: Exception while creating email-{0}", ex.Message), ex);
+                return false;
+            }
+        }
+
+        public bool GenerateReceiverFailureMessage(InboundProcessingSummary summary, StringBuilder message, string subjectPart = "")
+        {
+            try
+            {
+                //Create email body
+                _sbBody.AppendLine("<p>Dear <strong>Finance IT Support Team</strong>,</p>");
+                _sbBody.AppendLine("<p>You are getting this email as one more receivers lines which Parker have sent WNS today, have a flag of ‘D’.</p>");
+                _sbBody.AppendLine("<p>As per requirements if we receive a Flag ‘D’ for a receiver number WNS would try to delete any ‘A’/’C’ flag receivers which are not consumed yet from our database and send out a summary of the receivers we couldn’t delete as they are already consumed for further analysis.</p>");
+                _sbBody.AppendFormat("<p><strong>{0}</strong></p>", subjectPart);
+                _sbBody.Append(message);
+                _sbBody.AppendLine("<p></p>");
+
+                _sbBody.AppendLine(_emailFooter);
+                //Set message field values
+                //messagex.MessageID = Guid.NewGuid();
+                _message.Subject = string.Format("[{0}]***Action Needed for researching ‘D’ receiver line(s)***{1}", summary.InboundFileName, subjectPart);
+                _message.BodyText = _sbBody.ToString();
+                _message.EmailType = "Exception";
+                _message.EmailSubType = "";
+                _message.CreatedBy = "Gateway";
+                _message.Attachment1 = summary.LocalFailedFilePath;
+                _message.To = string.Format("{0};{1}", Globals.MailToPriority, Globals.MailToInfo);
+                if (!string.IsNullOrWhiteSpace(Globals.MailToOpsTeam))
+                    _message.To = string.Format("{0};{1}", Globals.MailToOpsTeam, _message.To);
+
+                //Save message
+                using (GatewayDBContext dbContext = new GatewayDBContext())
+                {
+                    dbContext.SEEmailMessages.Add(_message);
+                    dbContext.SaveChanges();
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Globals.FileLogger.Error(string.Format("GenerateReceiverFailureMessage: Error {0}", ex.Message), ex);
+                return false;
+            }
+        }
+
+
+        public void GenerateOutboundSummaryMessage(string EntityId, string FileName)
+        {
+            try
+            {
+                Globals.DBLogger.InfoFormat("Start to generate mail for OutboundCSV {0}", EntityId);
+                using (GatewayDBContext dbContext = new GatewayDBContext())
+                {
+                    OutboundEntity outboundEntity = dbContext.OutboundEntities.Where(b => b.EntityID == EntityId).FirstOrDefault();
+                    OutboundProcessingSummary outboundSummary = dbContext.OutboundProcessingSummaries.Where(a => a.EntityID == EntityId && a.OutboundFileName == FileName).FirstOrDefault();
+                    if (outboundSummary.TotalRows == 0)
+                    {
+                        _sbBody.AppendLine("<p>Dear <strong>Team</strong>,</p>");
+                        _sbBody.AppendLine("No records found for Outbound file. Empty file has been generated and will be uploaded to SFTP Folder shortly.");
+                    }
+                    else
+                    {
+                        //Create email body
+                        _sbBody.AppendLine("<p>Dear <strong>Team</strong>,</p>");
+                        _sbBody.AppendLine("<p>We have exported data in following files and will be uploaded to SFTP Folder shortly.</p>");
+                        _sbBody.AppendLine("<table><tr><th>File Name</th><th>File Path</th><th>Total Rows</th><th>Exported Till</th><th>Processing Start Time</th><th>Processing End Time</th></tr>");
+                        _sbBody.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td><td>{5}</td></tr>", outboundSummary.OutboundFileName, outboundSummary.LocalFilePath, outboundSummary.TotalRows, outboundSummary.ExportedTillTime, outboundSummary.ProcessingStartedTime, outboundSummary.ProcessingCompletedTime);
+                        _sbBody.AppendLine();
+                        _sbBody.AppendLine("</table>");
+                    }
+                    _sbBody.AppendLine(_emailFooter);
+                    //Set message field values
+                    //messagex.MessageID = Guid.NewGuid();
+                    _message.Subject = string.Format("Outbound File Generated:{0}-[{1}]", outboundEntity.EntityName, outboundSummary.OutboundFileName);
+                    _message.BodyText = _sbBody.ToString();
+                    _message.EmailType = "OutboundCSV";
+                    _message.EmailSubType = outboundEntity.EntityID;
+                    _message.Attachment1 = outboundSummary.LocalFilePath;
+                    _message.CreatedBy = "Outbound Files";
+                    _message.CreatedTime = DateTime.Now;
+                    _message.IsSent = false;
+
+                    //Set address list based on email id's
+                    _message.To = Globals.MailToInfo;
+                    if (!string.IsNullOrWhiteSpace(Globals.MailToOpsTeam))
+                        _message.To = string.Format("{0};{1}", Globals.MailToOpsTeam, _message.To);
+
+                    //Save message
+                    dbContext.SEEmailMessages.Add(_message);
+                    dbContext.SaveChanges();
+                }
+                Globals.DBLogger.InfoFormat("Mail generated successfully and add mail contents in mail table for outboundcsv {0}", EntityId);
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error(string.Format("Exception in generate mail for Outbound CSV {0} with exception {1}", EntityId, ex.Message), ex);
+            }
+
+        }
+
+        public void GenerateOutboundSFTPMessage(List<OutboundProcessingSummary> summaryList)
+        {
+            try
+            {
+                Globals.DBLogger.InfoFormat("Start to generate mail for Outbound CSV Upload {0}", summaryList.Count);
+                using (GatewayDBContext dbContext = new GatewayDBContext())
+                {
+                    //Create email body
+                    _sbBody.AppendLine("<p>Dear <strong>Team</strong>,</p>");
+                    _sbBody.AppendLine("<p>We have uploaded Outbound files to SFTP Folder as follows-</p>");
+                    _sbBody.AppendLine("<table><tr><th>File Type</th><th>File Name</th><th>SFTP Path</th><th>Total Rows</th><th>Exported Till</th><th>SFTP Upload Time</th><th>Local File Checksum</th><th>SFTP File Checksum</th></tr>");
+                    foreach (OutboundProcessingSummary outSummary in summaryList)
+                    {
+                        _sbBody.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td><td>{5}</td><td>{6}</td><td>{7}</td></tr>",
+                           outSummary.EntityID, outSummary.OutboundFileName, outSummary.SFTPFilePath, outSummary.TotalRows, outSummary.ExportedTillTime, outSummary.SFTPUploadTime, outSummary.LocalFileChecksum, outSummary.SFTPFileChecksum);
+                    }
+                    _sbBody.AppendLine("</table>");
+                    _sbBody.AppendLine(_emailFooter);
+                    //Set message field values
+                    //messagex.MessageID = Guid.NewGuid();
+                    _message.Subject = string.Format("Outbound Files Uploaded to SFTP :[{0}]", summaryList.Count);
+                    _message.BodyText = _sbBody.ToString();
+                    _message.EmailType = "OutboundCSV";
+                    _message.EmailSubType = "SFTPUpload";
+                    _message.CreatedBy = "Outbound Files";
+                    _message.CreatedTime = DateTime.Now;
+                    _message.IsSent = false;
+
+                    //Set address list based on email id's
+                    _message.To = Globals.MailToInfo;
+                    if (!string.IsNullOrWhiteSpace(Globals.MailToOpsTeam))
+                        _message.To = string.Format("{0};{1}", Globals.MailToOpsTeam, _message.To);
+
+                    //Save message
+                    dbContext.SEEmailMessages.Add(_message);
+                    dbContext.SaveChanges();
+                }
+                Globals.DBLogger.Info("Mail generated successfully and add mail contents in mail table for Outbound CSV ");
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error(string.Format("Exception in generate mail for Outbound CSV with exception {0}", ex.Message), ex);
+            }
+
+        }
+        public bool GenerateCompleteSummaryMessage(DateTime fromDate, DateTime toDate)
+        {
+            try
+            {
+                using (GatewayDBContext dbContext = new EFLibrary.GatewayDBContext())
+                {
+                    //Create email body
+                    _sbBody.AppendLine("<p>Dear <strong>Team</strong>,</p>");
+                    _sbBody.AppendLine("<p>Following is summary of Inbound, EDI, Invoice, and Outbound data synchronization</p>");
+
+                    List<InboundProcessingSummary> inboundSummaries = dbContext
+                        .InboundProcessingSummaries.Where(x =>
+                        (x.FileGeneratedTime >= fromDate && x.FileGeneratedTime <= toDate) ||
+                        (x.ProcessingCompletedTime >= fromDate && x.ProcessingCompletedTime <= toDate))
+                        .OrderBy(y => y.EntityID).ThenBy(z => z.FileGeneratedTime).ToList();
+
+                    _sbBody.AppendLine("<br>");
+                    _sbBody.AppendLine("<p><strong>Inbound Processing Summary</strong>:</p>");
+                    _sbBody.AppendLine("<table>");
+                    _sbBody.AppendLine("<tr><th>Entity</th><th>Source</th><th>Receipt Time</th><th>File Path(s)</th><th>Status</th><th>Time</th><th>Summary</th><th>FileName</th></tr>");
+                    foreach (InboundProcessingSummary item in inboundSummaries)
+                    {
+                        _sbBody.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3:MM/dd/yyyy HH:mm:ss}</td>", item.EntityID, item.InboundFileName, item.InboundFileSource, item.FileGeneratedTime);
+                        _sbBody.AppendFormat("<td>Total:{0}<br>Success:{1}(I:{2},U:{3},H:{4})<br>Failed:{5}</td>", item.RowsTotal, item.RowsSuccessful, item.RowsInserted, item.RowsUpdated, item.RowsCopiedToHistory, item.RowsFailed);
+                        _sbBody.AppendFormat("<td>{0}</td>", item.ProcessingCompletedTime);
+                        _sbBody.AppendFormat("<td>{0}</td>", item.ProcessingSummary);
+                        _sbBody.AppendFormat("<td>Loc:{0}<br>SFTP:{1}<br>SLoc:{2}<br>SSFTP:{3}<br>FLoc:{4}<br>FSFTP:{5}</td>", item.LocalSourceFilePath, item.SFTPSourceFilePath, item.LocalSuccessFilePath, item.SFTPSuccessFilePath, item.LocalFailedFilePath, item.SFTPSuccessFilePath);
+                        _sbBody.AppendLine("</tr>");
+                    }
+                    _sbBody.AppendLine("</table>");
+                    _sbBody.AppendLine("<br>");
+
+                    List<OutboundProcessingSummary> outSummaries = dbContext.OutboundProcessingSummaries.Where(x =>
+                                    (x.ExportedTillTime >= fromDate && x.ExportedTillTime <= toDate) ||
+                                    (x.ProcessingCompletedTime >= fromDate && x.ProcessingCompletedTime <= toDate))
+                                    .OrderBy(y => y.ExportedTillTime).ToList();
+
+                    _sbBody.AppendLine("<br>");
+                    _sbBody.AppendLine("<p><strong>Outbound Processing Summary</strong>:</p>");
+                    _sbBody.AppendLine("<table>");
+                    _sbBody.AppendLine("<tr><th>Entity</th><th>Exported Till</th><th>No of Rows</th><th>Processed</th><th>Outbound FileName</th></tr>");
+                    foreach (OutboundProcessingSummary item in outSummaries)
+                    {
+                        _sbBody.AppendFormat("<tr><td>{0}</td><td>{1:MM/dd/yyyy HH:mm:ss}</td>", item.EntityID, item.ExportedTillTime);
+                        _sbBody.AppendFormat("<td>{0}</td><td>{1:MM/dd/yyyy}</td>", item.TotalRows, item.ProcessingCompletedTime);
+                        _sbBody.AppendFormat("<td>{0}</td>", item.OutboundFileName);
+                        _sbBody.AppendLine("</tr>");
+                    }
+                    _sbBody.AppendLine("</table>");
+                    _sbBody.AppendLine("<br>");
+
+                    List<POBoxControlFileSummary> invSummaries = dbContext.POBoxControlFileSummaries.Where(x =>
+                            (x.FileGeneratedTime >= fromDate && x.FileGeneratedTime <= toDate) ||
+                            (x.SFTPDownloadTime >= fromDate && x.SFTPDownloadTime <= toDate))
+                            .OrderBy(y => y.POBoxName).ThenBy(z => z.FileGeneratedTime).ToList();
+
+                    _sbBody.AppendLine("<br>");
+                    _sbBody.AppendLine("<p><strong>Invoice Receipt Summary</strong>:</p>");
+                    _sbBody.AppendLine("<table>");
+                    _sbBody.AppendLine("<tr><th>PO Box</th><th>Invoice FileName</th><th>Source</th><th>File Names</th><th>Time</th></tr>");
+                    foreach (POBoxControlFileSummary item in invSummaries)
+                    {
+                        _sbBody.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td>", item.POBoxName, item.ControlFileName, item.ControlFileSource);
+                        _sbBody.AppendFormat("<td>SFTP:{0}</td>", item.SFTPFileFullName);
+                        _sbBody.AppendFormat("<td>{0:MM/dd/yyyy}</td>", item.FileGeneratedTime);
+                        _sbBody.AppendLine("</tr>");
+                    }
+                    _sbBody.AppendLine("</table>");
+                    _sbBody.AppendLine("<br>");
+                    _sbBody.AppendLine(_emailFooter);
+                    _message.Subject = string.Format("Processing summary From:{0:MM/dd/yyyy} To:{1:MM/dd/yyyy} Inbound:{2}, Outbound:{3} & Invoices:{4}", fromDate, toDate, inboundSummaries.Count, outSummaries.Count, invSummaries.Count);
+
+                    //Set message field values                   
+                    _message.BodyText = _sbBody.ToString();
+                    _message.EmailType = "Daily Summary";
+                    _message.EmailSubType = "";
+                    _message.CreatedBy = "Gateway Monitor";
+                    //Save message
+                    dbContext.SEEmailMessages.Add(_message);
+                    dbContext.SaveChanges();
+                    _message.To = string.Format("{0}", Globals.MailToInfo);
+
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error(string.Format("GenerateCompleteSummaryMessage: Error while Sendmail {0}", ex.Message), ex);
+                return false;
+            }
+        }
+
+        public bool GenerateOutboundSFTPErrorMessage(string message, Exception exception, List<OutboundProcessingSummary> summaryList)
+        {
+            try
+            {
+                //Create email body
+                _sbBody.AppendLine("<p>Dear <strong>Team</strong>,</p>");
+                _sbBody.AppendLine("<p>We have encountered EXCEPTION during Outbound File Upload to SFTP. Following are the details</p>");
+
+                _sbBody.AppendLine("<table><tr><th>File Type</th><th>File Name</th><th>Local File Path</th><th>Total Rows</th><th>Exported Till</th><th>File Generated Time</th></tr>");
+                foreach (OutboundProcessingSummary outSummary in summaryList)
+                {
+                    _sbBody.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td><td>{5}</td></tr>",
+                       outSummary.EntityID, outSummary.OutboundFileName, outSummary.LocalFilePath, outSummary.TotalRows, outSummary.ExportedTillTime, outSummary.ProcessingCompletedTime);
+                }
+                _sbBody.AppendLine("</table>");
+                _sbBody.AppendLine("<br>");
+
+                _sbBody.AppendLine("<table>");
+                _sbBody.AppendFormat("<tr><td>Message</td><td>{0}</td></tr>", message);
+                _sbBody.AppendFormat("<tr><td>Source</td><td>{0}</td></tr>", exception.Source);
+                _sbBody.AppendFormat("<tr><td>HResult</td><td>{0}</td></tr>", exception.HResult);
+                _sbBody.AppendFormat("<tr><td>Exception Message</td><td>{0}</td></tr>", exception.Message);
+                _sbBody.AppendFormat("<tr><td>Help Link</td><td>{0}</td></tr>", exception.HelpLink);
+                _sbBody.AppendFormat("<tr><td>Stack Trace</td><td>{0}</td></tr>", exception.StackTrace);
+                if (exception.InnerException != null)
+                    _sbBody.AppendFormat("<tr><td>Inner Exception</td><td>{0}</td></tr>", exception.InnerException.ToString());
+                _sbBody.AppendLine("</table>");
+                _sbBody.AppendLine(_emailFooter);
+                //Set message field values
+                //messagex.MessageID = Guid.NewGuid();
+                _message.Subject = "EXCEPTION During Outbound File Upload to SFTP";
+                _message.BodyText = _sbBody.ToString();
+                _message.EmailType = "Exception";
+                _message.EmailSubType = "";
+                _message.CreatedBy = "Gateway";
+                _message.To = Globals.MailToInfo;
+
+                //Save message
+                using (GatewayDBContext dbContext = new GatewayDBContext())
+                {
+                    dbContext.SEEmailMessages.Add(_message);
+                    dbContext.SaveChanges();
+                }
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                Globals.FileLogger.Error(string.Format("GenerateExceptionMessage: Error {0}", ex.Message), ex);
+                return false;
+            }
+        }
+
+        public bool GenerateExceptionMessage(string message, Exception exception)
+        {
+            try
+            {
+                //Create email body
+                _sbBody.AppendLine("<p>Dear <strong>Team</strong>,</p>");
+                _sbBody.AppendLine("<p>We have encountered EXCEPTION. Following are the details</p>");
+                _sbBody.AppendLine("<table>");
+
+                _sbBody.AppendFormat("<tr><td>Message</td><td>{0}</td></tr>", message);
+                _sbBody.AppendFormat("<tr><td>Source</td><td>{0}</td></tr>", exception.Source);
+                _sbBody.AppendFormat("<tr><td>HResult</td><td>{0}</td></tr>", exception.HResult);
+                _sbBody.AppendFormat("<tr><td>Exception Message</td><td>{0}</td></tr>", exception.Message);
+                _sbBody.AppendFormat("<tr><td>Help Link</td><td>{0}</td></tr>", exception.HelpLink);
+                _sbBody.AppendFormat("<tr><td>Stack Trace</td><td>{0}</td></tr>", exception.StackTrace);
+                if (exception.InnerException != null)
+                    _sbBody.AppendFormat("<tr><td>Inner Exception</td><td>{0}</td></tr>", exception.InnerException.ToString());
+
+                _sbBody.AppendLine("</table>");
+                _sbBody.AppendLine(_emailFooter);
+                //Set message field values
+                //messagex.MessageID = Guid.NewGuid();
+                _message.Subject = "EXCEPTION Received in DNAPGateway";
+                _message.BodyText = _sbBody.ToString();
+                _message.EmailType = "Exception";
+                _message.EmailSubType = "";
+                _message.CreatedBy = "Gateway";
+                _message.To = Globals.MailToInfo;
+
+                //Save message
+                using (GatewayDBContext dbContext = new GatewayDBContext())
+                {
+                    dbContext.SEEmailMessages.Add(_message);
+                    dbContext.SaveChanges();
+                }
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                Globals.FileLogger.Error(string.Format("GenerateExceptionMessage: Error {0}", ex.Message), ex);
+                return false;
+            }
+        }
+
+        public bool SendPendingEmails()
+        {
+            bool bReturn = false, bEmailSent;
+            try
+            {
+                lock (mailLock)
+                {
+                    using (GatewayDBContext dbContext = new GatewayDBContext())
+                    {
+                        List<SEEmailMessage> messages = dbContext.SEEmailMessages.Where(x => x.IsSent == false).ToList();
+                        FileInfo fi;
+                        foreach (SEEmailMessage message in messages)
+                        {
+                            //Create email and attach the files
+                            MailMessage email = new MailMessage();
+                            try
+                            {
+                                Globals.DBLogger.InfoFormat("SendPendingEmails: Generating email object to {0} with subject: {1}", message.To, message.Subject);
+
+                                email.From = new MailAddress(message.From);
+                                string[] toEmail = message.To.Split(Convert.ToChar(";"));
+                                foreach (string toAdd in toEmail)
+                                {
+                                    if (!string.IsNullOrWhiteSpace(toAdd))
+                                        email.To.Add(new MailAddress(toAdd));
+                                }
+                                string[] ccEmail = message.CC.Split(Convert.ToChar(";"));
+                                foreach (string ccAdd in ccEmail)
+                                {
+                                    if (!string.IsNullOrWhiteSpace(ccAdd))
+                                        email.CC.Add(new MailAddress(ccAdd));
+                                }
+                                email.IsBodyHtml = true;
+                                email.Subject = string.Format("{0}:{1}", Globals.Environment, Globals.CleanControlChars(message.Subject));
+                                email.Body = Globals.CleanControlChars(message.BodyText);
+
+                                //Attach files if specified with message
+                                if (!string.IsNullOrWhiteSpace(message.Attachment1) && Globals.MailAttachments)
+                                {
+                                    fi = new FileInfo(message.Attachment1);
+                                    if (fi.Exists)
+                                        email.Attachments.Add(new Attachment(Globals.CompressIfLarge(fi.FullName)));
+                                }
+                                if (!string.IsNullOrWhiteSpace(message.Attachment2) && Globals.MailAttachments)
+                                {
+                                    fi = new FileInfo(message.Attachment2);
+                                    if (fi.Exists)
+                                        email.Attachments.Add(new Attachment(Globals.CompressIfLarge(fi.FullName)));
+                                }
+
+                                //Connect to SMTP server to send out an email
+                                SmtpClient smtpSender = new SmtpClient(Globals.MailServerHost);
+                                smtpSender.Port = Convert.ToInt16(Globals.MailServerPort);
+                                //Use userid if specified
+                                if (!string.IsNullOrWhiteSpace(Globals.MailUserID))
+                                {
+                                    smtpSender.Credentials = new System.Net.NetworkCredential(
+                                                Globals.MailUserID, Globals.MailPassword);
+                                }
+                                //Use ssl if specified
+                                if (Globals.MailHostSSL)
+                                {
+                                    smtpSender.EnableSsl = true;
+                                }
+                                //Send email only if enabled
+                                bEmailSent = false;
+                                if (Globals.MailEnabled)
+                                {
+                                    //Try sending email else save it in folder
+                                    try
+                                    {
+                                        smtpSender.Send(email);
+                                        Globals.DBLogger.InfoFormat("SendPendingEmails: Sent an email to {0}.", message.To);
+                                        bEmailSent = true;
+                                    }
+                                    catch (SmtpException ex)
+                                    {
+                                        Globals.DBLogger.Error(string.Format("SendPendingEmails: SMTP exception while sending email: {0}.", ex.Message), ex);
+                                        //break;
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Globals.DBLogger.Error(string.Format("SendPendingEmails: Non-SMTP while sending email: {0}.", ex.Message), ex);
+                                        //break;
+                                    }
+                                }
+                                if (Globals.MailEnabled == false || bEmailSent == false)
+                                {
+                                    try
+                                    {
+                                        DirectoryInfo di = new DirectoryInfo(Globals.EmailLocalFolder);
+                                        if (!di.Exists) di.Create();
+                                        try
+                                        {
+                                            //Save email to local file Using Extension
+                                            Regex rgx = new Regex("[^a-zA-Z0-9 -]");
+                                            string fileName = rgx.Replace(email.Subject, "-");
+                                            email.Save(Path.Combine(di.FullName, $"{fileName}-{DateTime.Now:yyyyMMddHHmmss}.eml"));
+                                        }
+                                        catch (Exception)
+                                        {
+                                            //--- Method 2
+                                            smtpSender.DeliveryMethod = SmtpDeliveryMethod.SpecifiedPickupDirectory;
+                                            smtpSender.PickupDirectoryLocation = di.FullName;
+                                            smtpSender.Send(email);
+                                        }
+                                        Globals.DBLogger.InfoFormat("SendPendingEmails: Saved email to {0}.", di.FullName);
+                                        bEmailSent = Globals.Environment.Contains("DEV");
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Globals.DBLogger.Error(string.Format("SendPendingEmails: Error while saving-{0}.", ex.Message), ex);
+                                        break;
+                                    }
+                                }
+                                if (Globals.MailEnabled == false || bEmailSent)
+                                {
+                                    //Update email sent flag
+                                    message.IsSent = true;
+                                    message.SentTime = DateTime.Now;
+                                    dbContext.SaveChanges();
+                                }
+                                bReturn = true;
+                            }
+                            catch (Exception ex)
+                            {
+                                Globals.DBLogger.Error(string.Format("SendPendingEmails: Inner Error while sending email: {0}.", ex.Message), ex);
+                                return false;
+                            }
+                        }
+                        return bReturn;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error(string.Format("SendPendingEmails: Exception while sending email: {0}.", ex.Message), ex);
+                return false;
+            }
+        }
+    }
+
+    public static class MailMessageExt
+    {
+        public static void Save(this MailMessage Message, string FileName)
+        {
+            Assembly assembly = typeof(SmtpClient).Assembly;
+            Type _mailWriterType =
+              assembly.GetType("System.Net.Mail.MailWriter");
+
+            using (FileStream _fileStream =
+                   new FileStream(FileName, FileMode.Create))
+            {
+                // Get reflection info for MailWriter contructor
+                ConstructorInfo _mailWriterContructor =
+                    _mailWriterType.GetConstructor(
+                        BindingFlags.Instance | BindingFlags.NonPublic,
+                        null,
+                        new Type[] { typeof(Stream) },
+                        null);
+
+                // Construct MailWriter object with our FileStream
+                object _mailWriter =
+                  _mailWriterContructor.Invoke(new object[] { _fileStream });
+
+                // Get reflection info for Send() method on MailMessage
+                MethodInfo _sendMethod =
+                    typeof(MailMessage).GetMethod(
+                        "Send",
+                        BindingFlags.Instance | BindingFlags.NonPublic);
+
+                // Call method passing in MailWriter
+                _sendMethod.Invoke(
+                    Message,
+                    BindingFlags.Instance | BindingFlags.NonPublic,
+                    null,
+                    new object[] { _mailWriter, true, true },
+                    null);
+
+                // Finally get reflection info for Close() method on our MailWriter
+                MethodInfo _closeMethod =
+                    _mailWriter.GetType().GetMethod(
+                        "Close",
+                        BindingFlags.Instance | BindingFlags.NonPublic);
+
+                // Call close method
+                _closeMethod.Invoke(
+                    _mailWriter,
+                    BindingFlags.Instance | BindingFlags.NonPublic,
+                    null,
+                    new object[] { },
+                    null);
+            }
+        }
+    }
+}
