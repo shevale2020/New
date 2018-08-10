@@ -1,0 +1,343 @@
+using log4net;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Configuration;
+using System.Globalization;
+using System.Net.Mail;
+using System.IO;
+using System.Threading;
+using log4net.Repository;
+using log4net.Appender;
+using System.Text.RegularExpressions;
+using System.IO.Compression;
+
+namespace DNAPGateway.EFLibrary
+{
+    public static partial class Globals
+    {
+        public static readonly ILog DBLogger = null;
+        public static readonly ILog FileLogger = null;
+        public static readonly DateTime DefaultDate = new DateTime(1900, 1, 1);
+        static Globals()
+        {
+            //Initialize Log4Net
+            log4net.Config.XmlConfigurator.Configure();
+            try
+            {
+                ILoggerRepository rep = LogManager.GetRepository();
+                foreach (IAppender appender in rep.GetAppenders())
+                {
+                    var buffered = appender as BufferingAppenderSkeleton;
+                    if (appender is log4net.Appender.FileAppender)
+                    {
+                        log4net.Appender.FileAppender fileAppender = (log4net.Appender.FileAppender)appender;
+                        FileInfo fiExe = new FileInfo(System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName);
+                        FileInfo fiLog = new FileInfo(fileAppender.File);
+                        fileAppender.File = System.IO.Path.Combine(fiLog.DirectoryName, $"{System.IO.Path.GetFileNameWithoutExtension(fiExe.Name)}-Log.txt");
+                        fileAppender.ActivateOptions();
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                //Ignore exception
+            }
+            DBLogger = LogManager.GetLogger("DBLogger");
+            FileLogger = LogManager.GetLogger("FileLogger");
+        }
+        public static void FlushLogBuffers()
+        {
+            try
+            {
+                ILoggerRepository rep = LogManager.GetRepository();
+                foreach (IAppender appender in rep.GetAppenders())
+                {
+                    var buffered = appender as BufferingAppenderSkeleton;
+                    if (buffered != null)
+                    {
+                        buffered.Flush();
+                    }
+                }
+
+            }
+            catch (Exception)
+            {
+                //Ignore Exception
+            }
+        }
+        public static string ConvertDate(string dateIn, string inputFormat, string outputFormat)
+        {
+            string dateOut = "";
+            bool bResult = false;
+            DateTime dt;
+
+            bResult = DateTime.TryParseExact(dateIn, inputFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out dt);
+            if (bResult)
+            {
+                dateOut = dt.ToString("yyyy-MM-dd");
+            }
+            return dateOut;
+        }
+        public static DateTime ConvertDate(string dateIn, string inputFormat)
+        {
+            bool bResult = false;
+            DateTime dt = DateTime.MinValue;
+            try
+            {
+                bResult = DateTime.TryParseExact(dateIn, inputFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out dt);
+                if (bResult)
+                {
+                    return dt;
+                }
+                return DateTime.MinValue;
+            }
+            catch (Exception)
+            {
+                return DateTime.MinValue;
+            }
+        }
+
+        public static string FileNameWOExt(System.IO.FileInfo fileInfo)
+        {
+            string fileWOExt = fileInfo.Name.Substring(0, (fileInfo.Name.Length - fileInfo.Extension.Length));
+            return fileWOExt;
+        }
+        public static Encoding GetFileEncoding(string fileFullName)
+        {
+            try
+            {
+                using (StreamReader sr = new StreamReader(fileFullName, true))
+                {
+                    if (sr.Peek() >= 0)
+                        return sr.CurrentEncoding;
+                    else
+                        return Encoding.ASCII;
+                }
+            }
+            catch (Exception)
+            {
+                return Encoding.ASCII;
+            }
+        }
+        public static string MD5Hash(string fileFullName)
+        {
+            try
+            {
+                using (StreamReader sr = new StreamReader(fileFullName, true))
+                {
+                    using (System.Security.Cryptography.MD5 provider = System.Security.Cryptography.MD5.Create())
+                    {
+                        StringBuilder builder = new StringBuilder(512);
+
+                        foreach (byte b in provider.ComputeHash(Encoding.UTF8.GetBytes(sr.ReadToEnd())))
+                            builder.Append(b.ToString("x2").ToLower());
+
+                        return builder.ToString();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.ErrorFormat("MD5Hash: Could not generate MD5Hash...{0} error:{1}", fileFullName, ex.Message);
+                return "";
+            }
+        }
+
+        public static DateTime GetTimestampFromInboundFilename(string fileName, DateTime fileCreated)
+        {
+            DateTime dt = DateTime.Now, dtTemp, tmTemp;
+            bool bResult = false;
+
+            try
+            {
+                if (fileCreated > DateTime.MinValue)
+                    dt = fileCreated;
+                string[] fileParts = fileName.Split('_', '-');
+                string dtStr = ((fileParts.Length > 0) ? fileParts[1] : "");
+                dtStr = dtStr.Substring(0, 8);
+                bResult = DateTime.TryParseExact(dtStr, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out dtTemp);
+                if (bResult)
+                {
+                    dt = dtTemp;
+                    string tmStr = ((fileParts.Length > 1) ? fileParts[2] : "");
+                    tmStr = tmStr.Substring(0, 6);
+                    bResult = DateTime.TryParseExact(tmStr, "HHmmss", CultureInfo.InvariantCulture, DateTimeStyles.None, out tmTemp);
+                    dt = new DateTime(dtTemp.Year, dtTemp.Month, dtTemp.Day, tmTemp.Hour, tmTemp.Minute, tmTemp.Second);
+                }
+                return dt;
+            }
+            catch (Exception)
+            {
+                Globals.DBLogger.Info("GetTimestampFromInboundFilename: Filename in Incorrect Format..." + fileName);
+                return dt;
+            }
+        }
+
+
+        public static string FileNameWOExt(string fileName)
+        {
+
+            string fileWOExt = fileName.Substring(0, fileName.IndexOf("."));
+            return fileWOExt;
+        }
+
+        public static bool VerifyLocalInboundFolders(string entityID = "")
+        {
+            try
+            {
+                Globals.DBLogger.Info("Verifying Local Inbound Folders...");
+                using (var context = new EFLibrary.GatewayDBContext())
+                {
+                    // Perform data access using the context 
+                    List<InboundEntity> entities;
+                    if (string.IsNullOrWhiteSpace(entityID))
+                        entities = context.InboundEntities.AsNoTracking().Where(x => x.IsEntitySyncEnabled).ToList();
+                    else
+                    {
+                        entities = context.InboundEntities.Where(x =>
+                                (x.EntityID.Equals(entityID, StringComparison.OrdinalIgnoreCase))).ToList();
+                    }
+                    //Create folder structure
+                    foreach (EFLibrary.InboundEntity entity in entities)
+                    {
+                        DirectoryInfo diRoot = new DirectoryInfo(Globals.LocalInboundRootFolder);
+                        if (!diRoot.Exists) diRoot.Create();
+                        DirectoryInfo entityDir = new DirectoryInfo(Path.Combine(diRoot.FullName, entity.EntityID));
+                        if (!entityDir.Exists) entityDir.Create();
+                        DirectoryInfo entitySuccess = new DirectoryInfo(Path.Combine(entityDir.FullName, "Success"));
+                        if (!entitySuccess.Exists) entitySuccess.Create();
+                        DirectoryInfo entityFailure = new DirectoryInfo(Path.Combine(entityDir.FullName, "Failure"));
+                        if (!entityFailure.Exists) entityFailure.Create();
+                    }
+                }
+                Globals.DBLogger.Info("Local Inbound Folders Verified...");
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error($"VerifyLocalInboundFolders: Cannot verify.. Exception {ex.Message}", ex);
+                throw ex;
+            }
+        }
+        public static bool VerifyLocalOutboundFolders(string entityID = "")
+        {
+            try
+            {
+                Globals.DBLogger.Info("Verifying Local Outbound Folders...");
+                using (var context = new EFLibrary.GatewayDBContext())
+                {
+                    // Perform data access using the context 
+                    List<OutboundEntity> entities;
+                    if (string.IsNullOrWhiteSpace(entityID))
+                        entities = context.OutboundEntities.AsNoTracking().Where(x => x.IsEntitySyncEnabled).ToList();
+                    else
+                    {
+                        entities = context.OutboundEntities.Where(x =>
+                                (x.EntityID.Equals(entityID, StringComparison.OrdinalIgnoreCase))).ToList();
+                    }
+                    //Create folder structure
+                    foreach (EFLibrary.OutboundEntity entity in entities)
+                    {
+                        DirectoryInfo diRoot = new DirectoryInfo(Globals.LocalOutboundRootFolder);
+                        if (!diRoot.Exists) diRoot.Create();
+                        DirectoryInfo entityDir = new DirectoryInfo(Path.Combine(diRoot.FullName, entity.EntityID));
+                        if (!entityDir.Exists) entityDir.Create();
+                        DirectoryInfo entitySuccess = new DirectoryInfo(Path.Combine(entityDir.FullName, "Success"));
+                        if (!entitySuccess.Exists) entitySuccess.Create();
+                        DirectoryInfo entityFailure = new DirectoryInfo(Path.Combine(entityDir.FullName, "Failure"));
+                        if (!entityFailure.Exists) entityFailure.Create();
+                    }
+                }
+                Globals.DBLogger.Info("Local Outbound Folders Verified...");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error($"VerifyLocalOutboundFolders: Cannot verify.. Exception {ex.Message}", ex);
+                throw ex;
+            }
+        }
+        public static bool IsFileReady(string path)
+        {
+            for (int numOfAttempts = 6; numOfAttempts > 0; numOfAttempts--)
+            {
+                try
+                {
+                    //If we can't open the file, it's still copying
+                    using (var file = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    {
+                        return true;
+                    }
+                }
+                catch (IOException)
+                {
+                    if (numOfAttempts == 0)
+                        return false;
+                }
+                //The file is still arriving, give it time to finish copying and check again
+                Thread.Sleep(5000);
+            }
+            //Return false after exhausting multiple attempts
+            return false;
+        }
+        public static string CompressIfLarge(string sourceFilePath)
+        {
+            try
+            {
+                FileInfo fiSource = new FileInfo(sourceFilePath);
+                //Return input file path if size is not large
+                if (fiSource.Length < (5 * 1024 * 1024))
+                    return sourceFilePath;
+
+                string zipFilePath = Path.Combine(fiSource.DirectoryName, $"{Globals.FileNameWOExt(fiSource)}.zip");
+
+                using (FileStream zipToOpen = new FileStream(zipFilePath, FileMode.OpenOrCreate))
+                using (ZipArchive archive = new ZipArchive(zipToOpen, ZipArchiveMode.Create))
+                {
+                    ZipArchiveEntry readmeEntry = archive.CreateEntry(new FileInfo(sourceFilePath).Name);
+                    using (StreamReader reader = new StreamReader(fiSource.FullName))
+                    using (StreamWriter writer = new StreamWriter(readmeEntry.Open()))
+                    {
+                        while (reader.Peek() != -1)
+                        {
+                            writer.WriteLine(reader.ReadLine());
+                        }
+                    }
+                    //Return zip file path if size is large
+                    return zipFilePath;
+                }
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error($"Exception in CompressIfLarge: File:{sourceFilePath} Error:{ex.Message}.", ex);
+                return sourceFilePath;
+            }
+        }
+        public static string GatewayExePath
+        {
+            get
+            {
+                FileInfo fiLocation = new FileInfo(System.Reflection.Assembly.GetExecutingAssembly().Location);
+                return fiLocation.DirectoryName;
+            }
+        }
+        public static string CleanControlChars(object inObject)
+        {
+            if (inObject == null || inObject == DBNull.Value)
+                return "";
+            if (inObject.GetType() != typeof(string))
+                return inObject.ToString();
+            //return Regex.Replace(inObject.ToString(), @"\p{C}+", " ", RegexOptions.Multiline);
+            return Regex.Replace(inObject.ToString(), @"\s+", " ", RegexOptions.Multiline);
+        }
+        public static string CleanControlChars(string inString)
+        {
+            //return Regex.Replace(inString, @"\p{C}+", " ", RegexOptions.Multiline);
+            return Regex.Replace(inString, @"\s+", " ", RegexOptions.Multiline);
+        }
+    }
+}
