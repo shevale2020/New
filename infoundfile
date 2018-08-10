@@ -1,0 +1,491 @@
+using DNAPGateway.EFLibrary;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using WinSCP;
+
+namespace DNAPGateway.SFTPCommunicator
+{
+    public class InboundFileSync
+    {
+        public static bool VerifySFTPInboundFolders(string entityId = "")
+        {
+            bool bResult = false;
+            Globals.DBLogger.Info("Checking/Creating SFTP Inbound Folders...");
+            using (GatewayDBContext dbContext = new EFLibrary.GatewayDBContext())
+            {
+                using (SFTPHelper sftpHelper = new SFTPHelper())
+                {
+                    //Create root folders
+                    sftpHelper.CreateSFTPFolder(Globals.SFTPInboundRootFolder);
+                    // Perform data access using the context 
+                    List<InboundEntity> entities = null;
+                    if (string.IsNullOrWhiteSpace(entityId))
+                    {
+                        entities = dbContext.InboundEntities.AsNoTracking()
+                            .Where(x => x.IsEntitySyncEnabled).ToList();
+                    }
+                    else
+                    {
+                        entities = dbContext.InboundEntities.AsNoTracking()
+                            .Where(x => x.EntityID.Equals(entityId, StringComparison.OrdinalIgnoreCase)).ToList();
+                    }
+                    foreach (EFLibrary.InboundEntity entity in entities)
+                    {
+                        try
+                        {
+                            // Connect
+                            Globals.DBLogger.InfoFormat("Checking/Creating folders on SFTP for {0}", entity.EntityID);
+                            sftpHelper.CreateSFTPFolder($"{Globals.SFTPInboundRootFolder}{entity.EntityID}");
+                            sftpHelper.CreateSFTPFolder($"{Globals.SFTPInboundRootFolder}{entity.EntityID}/Success");
+                            sftpHelper.CreateSFTPFolder($"{Globals.SFTPInboundRootFolder}{entity.EntityID}/Failure");
+                            Globals.DBLogger.InfoFormat("SFTP Folders Verified Successfully for {0}", entity.EntityID);
+                            bResult = true;
+                        }
+                        catch (Exception ex)
+                        {
+                            Globals.DBLogger.Error(string.Format("Exception while creating SFTP folder for {0}. Error: {1}", entity.EntityID, ex.Message), ex);
+                            bResult = false;
+                        }
+                    }
+                }
+                Globals.DBLogger.Info("Checked/Created SFTP Inbound Folders.");
+                return bResult;
+            }
+        }
+        public bool DownloadInboundFiles(string entityID = "")
+        {
+            bool bResult = false;
+            try
+            {
+                InboundFileSync.VerifySFTPInboundFolders(entityID);
+                Globals.DBLogger.Info("DownloadInboundFiles: Starting Download of Inbound Files...");
+                using (GatewayDBContext dbContext = new EFLibrary.GatewayDBContext())
+                {
+                    //Declare required variables
+                    List<InboundEntity> entities;
+                    TransferOperationResult transferCSVResult = null, transferMetaResult = null;
+                    IEnumerable<RemoteFileInfo> sftpCsvFiles = null, sftpCtrlFiles = null;
+                    InboundProcessingSummary inSummary = null;
+                    List<InboundProcessingSummary> summaryList = new List<InboundProcessingSummary>();
+                    RemoteFileInfo ctrlFileInfo;
+                    FileInfo fi, fiLocalCSV, fiLocalTXT;
+                    bool ctrlFilePresent = false, ctrlProcessFile = false;
+                    string fileNameWOExt = "", ctrlFileWOExt = "", localFolder = "", sftpFilePath = "";
+
+                    //Download inbound files of all entities or specific entities
+                    if (entityID == "")
+                    {
+                        entities = dbContext.InboundEntities
+                                .OrderBy(a => a.ProcessingPriority).ThenBy(b => b.EntityID).ToList();
+                    }
+                    else
+                    {
+                        entities = dbContext.InboundEntities.Where(x =>
+                                x.EntityID.Equals(entityID, StringComparison.OrdinalIgnoreCase)).ToList();
+                    }
+                    //Download files for all/selected the entity
+                    foreach (EFLibrary.InboundEntity entity in entities)
+                    {
+                        using (SFTPHelper sftpHelper = new SFTPHelper())
+                        {
+                            // List remote files
+                            localFolder = Path.Combine(Globals.LocalInboundRootFolder, entity.EntityID);
+                            //Create EDI Local folders if not exist
+                            DirectoryInfo diEntityRoot = new DirectoryInfo(localFolder);
+                            if (!diEntityRoot.Exists)
+                                Globals.VerifyLocalInboundFolders(entity.EntityID);
+                            //List data files and check
+                            bResult = sftpHelper.EnumerateSFTPFiles($"{Globals.SFTPInboundRootFolder}{entity.EntityID}/",
+                                $"{entity.EntityID}_*.{entity.FileInputType}{(entity.IsEncrypted ? Globals.CryptoFileExtension : string.Empty)}",
+                                ref sftpCsvFiles);
+                            //List control files and check
+                            bResult = sftpHelper.EnumerateSFTPFiles($"{Globals.SFTPInboundRootFolder}{entity.EntityID}/",
+                                $"{entity.EntityID}_*.txt", ref sftpCtrlFiles);
+
+                            foreach (RemoteFileInfo sftpFI in sftpCsvFiles)
+                            {
+                                //Check if corresponding control file is  present
+                                //If not dont proceed with processing
+                                fileNameWOExt = Globals.FileNameWOExt(sftpFI.Name);
+                                //Check for control file if check is enabled
+                                ctrlFileInfo = null;
+                                ctrlFilePresent = (!entity.IsControlFileEnabled);
+                                //If any control file is found then only start the download
+                                //else dont proceed with download
+                                ctrlProcessFile = (entity.IsControlFileEnabled ? (sftpCtrlFiles.Count() > 0) : true);
+                                if (ctrlProcessFile)
+                                {
+                                    foreach (RemoteFileInfo ctrlFI in sftpCtrlFiles)
+                                    {
+                                        ctrlFileWOExt = Globals.FileNameWOExt(ctrlFI.Name);
+                                        if (fileNameWOExt.Equals(ctrlFileWOExt, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            ctrlFileInfo = ctrlFI;
+                                            ctrlFilePresent = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                Globals.DBLogger.Info($"DownloadInboundFiles: Searching for file in summary {sftpFI.Name} :: {sftpFI.FullName}");
+                                //Check if file already processed in SyncInboundProcessingSummaries? 
+                                //File may be present in local folder but not processed 
+                                //or sync engine may be running on different machine 
+                                //hence rely on SyncInboundProcessingSummaries 
+                                //another posibility could be file is archived on local machine 
+                                //but still available on SFTP folder
+                                inSummary = dbContext.InboundProcessingSummaries
+                                            .Where(x => (x.InboundFileName.Equals(fileNameWOExt, StringComparison.OrdinalIgnoreCase))
+                                            && (x.EntityID == entity.EntityID) && (x.IsProcessed == true))
+                                            .FirstOrDefault();
+                                //Download file if record not present and control file is present
+                                if ((inSummary == null) && ctrlFilePresent)
+                                {
+                                    Globals.DBLogger.InfoFormat("DownloadInboundFiles: Downloading File {0} :: {1}", sftpFI.Name, sftpFI.FullName);
+                                    // Start file download
+                                    fiLocalCSV = new FileInfo(Path.Combine(localFolder, sftpFI.Name));
+                                    if (fiLocalCSV.Exists)
+                                        fiLocalCSV.Delete();
+                                    bResult = sftpHelper.DownloadSFTPFiles(sftpFI.FullName, fiLocalCSV.FullName, ref transferCSVResult);
+                                    if (bResult)
+                                    {
+                                        foreach (TransferEventArgs transfer in transferCSVResult.Transfers)
+                                        {
+                                            Globals.DBLogger.InfoFormat("Transferred: {0} to {1}", transfer.FileName, transfer.Destination);
+                                            // Perform data access using the context 
+                                            fi = new FileInfo(transfer.Destination);
+                                            fileNameWOExt = Globals.FileNameWOExt(fi);
+                                            //Search record
+                                            inSummary = dbContext.InboundProcessingSummaries
+                                                            .Where(x => (x.InboundFileName.Equals(fileNameWOExt, StringComparison.OrdinalIgnoreCase))
+                                                            && (x.EntityID == entity.EntityID))
+                                                            .FirstOrDefault();
+                                            //Add Summary record
+                                            if (inSummary == null)
+                                            {
+                                                inSummary = new InboundProcessingSummary();
+                                                inSummary.EntityID = entity.EntityID;
+                                                inSummary.InboundFileName = fileNameWOExt;
+                                                dbContext.InboundProcessingSummaries.Add(inSummary);
+                                            }
+                                            //Set other attributes
+                                            inSummary.InboundFileSource = "SFTP";
+                                            inSummary.SFTPSourceFilePath = transfer.FileName;
+                                            inSummary.LocalSourceFilePath = transfer.Destination;
+                                            inSummary.FileGeneratedTime = Globals.GetTimestampFromInboundFilename(fileNameWOExt, sftpFI.LastWriteTime);
+                                            inSummary.SFTPDownloadTime = DateTime.Now;
+                                            inSummary.ProcessingWorkstation = Environment.MachineName;
+                                            inSummary.IsProcessed = false;
+                                            inSummary.IsResultUploadedToSFTP = false;
+                                            inSummary.IsReadyForArchival = false;
+                                            inSummary.IsArchived = false;
+                                            inSummary.ProcessingSummary = "File downloaded to local folder. Processing pending ...";
+                                            //Add summary object to list which can be used to generate email
+                                            summaryList.Add(inSummary);
+                                            dbContext.SaveChanges();
+
+                                            //Transfer Metadata file as well if present
+                                            if (ctrlFileInfo != null)
+                                            {
+                                                fiLocalTXT = new FileInfo(Path.Combine(localFolder, ctrlFileInfo.Name));
+                                                if (fiLocalTXT.Exists)
+                                                    fiLocalTXT.Delete();
+                                                // Download individual metadata file
+                                                bResult = sftpHelper.DownloadSFTPFiles(ctrlFileInfo.FullName, fiLocalTXT.FullName, ref transferMetaResult);
+                                                if (!bResult)
+                                                    throw new Exception("Exception while downloading metadata file");
+                                            }
+                                        }
+                                    }
+                                }
+                                else if ((inSummary == null) && !ctrlFilePresent)
+                                {
+                                    //File is not downloaded as control file is missing
+                                    //Move file to Failure folder
+                                    sftpFilePath = $"{Globals.SFTPInboundRootFolder}{entity.EntityID}/Failure/{sftpFI.Name}";
+                                    bResult = sftpHelper.MoveOrUploadFile(sftpFI.FullName, sftpFilePath, "");
+
+                                    //Send exception email
+                                    EmailGenerator email = new EmailGenerator();
+                                    email.GenerateMissingControlFileMessage(entity.EntityID, entity.EntityName, fileNameWOExt, sftpFI.FullName);
+
+                                    //Create summary record and mark the file as processed
+                                    //Search record
+                                    inSummary = dbContext.InboundProcessingSummaries
+                                                    .Where(x => (x.InboundFileName.Equals(fileNameWOExt, StringComparison.OrdinalIgnoreCase)) && (x.EntityID == entity.EntityID))
+                                                    .FirstOrDefault();
+                                    //Add Summary record
+                                    if (inSummary == null)
+                                    {
+                                        inSummary = new InboundProcessingSummary();
+                                        inSummary.EntityID = entity.EntityID;
+                                        inSummary.InboundFileName = fileNameWOExt;
+                                        dbContext.InboundProcessingSummaries.Add(inSummary);
+                                    }
+                                    //Set other attributes
+                                    inSummary.InboundFileSource = "SFTP";
+                                    if (bResult)
+                                        inSummary.SFTPSourceFilePath = sftpFilePath;
+                                    else
+                                        inSummary.SFTPSourceFilePath = sftpFI.FullName;
+                                    inSummary.LocalSourceFilePath = "";
+                                    inSummary.FileGeneratedTime = Globals.GetTimestampFromInboundFilename(fileNameWOExt, sftpFI.LastWriteTime);
+                                    inSummary.SFTPDownloadTime = DateTime.Now;
+                                    inSummary.ProcessingWorkstation = Environment.MachineName;
+                                    //Switch on all flags so that email will not be sent AGAIN for same file during subsequent run
+                                    inSummary.IsProcessed = true;
+                                    inSummary.IsResultUploadedToSFTP = true;
+                                    inSummary.IsReadyForArchival = true;
+                                    inSummary.IsArchived = true;
+                                    inSummary.ProcessingSummary = "Processing failed due to MISSING ControlFile... :-(";
+                                    //Add summary object to list which can be used to generate email
+                                    summaryList.Add(inSummary);
+                                    dbContext.SaveChanges();
+                                }
+                            }
+                        }
+                        //Generate email from the list
+                        if (summaryList.Count > 0)
+                        {
+                            EmailGenerator email = new EmailGenerator();
+                            email.GenerateInboundFileDownloadSummaryMessage(entity.EntityID, entity.EntityName, summaryList);
+                            summaryList.Clear();
+                            bResult = true;
+                        }
+                    }
+                }
+                Globals.DBLogger.Info("DownloadInboundFiles: Download Inbound Files Completed.");
+                return bResult;
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error(string.Format("DownloadInboundFiles Error: {0}", ex.Message), ex);
+                return false;
+            }
+        }
+        public bool UploadInboundResults(string entityID = "")
+        {
+            try
+            {
+                bool bResult = false;
+                string sftpTargetFile = "";
+                Globals.DBLogger.Info("UploadInboundResults: Starting Upload Inbound Results...");
+
+                using (GatewayDBContext dbContext = new EFLibrary.GatewayDBContext())
+                {
+                    List<InboundEntity> entities;
+                    List<InboundProcessingSummary> summaryList;
+                    TransferOperationResult transferResult = null;
+                    FileInfo fiSource;
+                    //Upload inbound files of all entities or specific entities
+                    if (string.IsNullOrWhiteSpace(entityID))
+                        entities = dbContext.InboundEntities.ToList();
+                    else
+                    {
+                        entities = dbContext.InboundEntities.Where(x =>
+                            x.EntityID.Equals(entityID, StringComparison.OrdinalIgnoreCase)).ToList();
+                    }
+
+                    //Upload files to SFTP
+                    foreach (EFLibrary.InboundEntity entity in entities)
+                    {
+                        //Check summary record present
+                        summaryList = dbContext.InboundProcessingSummaries
+                                .Where(x => (x.EntityID == entity.EntityID)
+                                    && (x.IsProcessed && !x.IsResultUploadedToSFTP)
+                                    && x.ProcessingWorkstation == Environment.MachineName).ToList();
+                        if (summaryList.Count == 0)
+                        {
+                            Globals.DBLogger.InfoFormat("UploadInboundResults: Nothing to Upload Inbound Results for {0}...", entity.EntityID);
+                            continue;
+                        }
+                        using (SFTPHelper sftpHelper = new SFTPHelper())
+                        {
+                            Globals.DBLogger.InfoFormat("UploadInboundResults: Uploading Results for Entity: {0}...", entity.EntityID);
+                            //Scan through all summary records
+                            foreach (InboundProcessingSummary summary in summaryList)
+                            {
+                                Globals.DBLogger.InfoFormat("UploadInboundResults: Uploading Results for Entity: {0} & File:{1}...", entity.EntityID, summary.InboundFileName);
+                                //Upload Success files
+                                if (!string.IsNullOrWhiteSpace(summary.LocalSuccessFilePath))
+                                {
+                                    fiSource = new FileInfo(summary.LocalSuccessFilePath);
+                                    sftpTargetFile = $"{Globals.SFTPInboundRootFolder}{entity.EntityID}/Success/{fiSource.Name}";
+                                    // Start file Upload for success
+                                    bResult = sftpHelper.UploadLocalFile(summary.LocalSuccessFilePath, sftpTargetFile, ref transferResult);
+                                    if (bResult)
+                                    {
+                                        foreach (TransferEventArgs transfer in transferResult.Transfers)
+                                        {
+                                            summary.SFTPSuccessFilePath = transfer.Destination;
+                                        }
+                                    }
+
+                                }
+                                //Upload Failure files
+                                if (!string.IsNullOrWhiteSpace(summary.LocalFailedFilePath))
+                                {
+                                    fiSource = new FileInfo(summary.LocalFailedFilePath);
+                                    sftpTargetFile = $"{Globals.SFTPInboundRootFolder}{entity.EntityID}/Failure/{fiSource.Name}";
+                                    // Start file Upload for success
+                                    bResult = sftpHelper.UploadLocalFile(summary.LocalFailedFilePath, sftpTargetFile, ref transferResult);
+                                    if (bResult)
+                                    {
+                                        foreach (TransferEventArgs transfer in transferResult.Transfers)
+                                        {
+                                            summary.SFTPFailedFilePath = transfer.Destination;
+                                        }
+                                    }
+                                }
+                                //Update upload flag
+                                summary.IsResultUploadedToSFTP = true;
+                                summary.IsReadyForArchival = true;
+                                summary.IsArchived = false;
+                                summary.SFTPUploadTime = DateTime.Now;
+                                dbContext.SaveChanges();
+                                bResult = true;
+                            }
+                            //Close SFTP Session
+                        }
+                        if (summaryList.Count > 0)
+                        {
+                            //Send email
+                            //Generate email message for all processed files
+                            EmailGenerator emailGen = new EmailGenerator();
+                            bResult = emailGen.GenerateInboundProcessingSummaryMessage(summaryList, true);
+                        }
+                    }
+                }
+                Globals.DBLogger.Info("UploadInboundResults: Completed...");
+                return bResult;
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error(string.Format("UploadInboundResults Error: {0}", ex.Message), ex);
+                return false;
+            }
+        }
+
+        public bool ArchiveInboundFiles(string entityID = "")
+        {
+            try
+            {
+                bool bResult = false;
+                Globals.DBLogger.Info("ArchiveInboundFiles: Starting Inbound Archivals...");
+                using (GatewayDBContext dbContext = new EFLibrary.GatewayDBContext())
+                {
+                    List<InboundEntity> entities;
+                    List<InboundProcessingSummary> summaryList;
+                    //Archive inbound files of all entities or specific entities
+                    if (string.IsNullOrWhiteSpace(entityID))
+                        entities = dbContext.InboundEntities.Where(x => x.IsArchivalEnabled).ToList();
+                    else
+                    {
+                        entities = dbContext.InboundEntities.Where(x => x.EntityID.Equals(entityID, StringComparison.OrdinalIgnoreCase)
+                            && x.IsArchivalEnabled).ToList();
+                    }
+                    //Define all the variables
+                    string localTarget, sftpSource, sftpTarget, sftpSourceFile, sftpTargetFile;
+                    FileInfo fi;
+                    DirectoryInfo di;
+                    //Archive files to SFTP
+
+                    foreach (EFLibrary.InboundEntity entity in entities)
+                    {
+                        //Check summary record present
+                        summaryList = dbContext.InboundProcessingSummaries
+                                .Where(x => (x.EntityID == entity.EntityID) && x.IsProcessed && x.IsResultUploadedToSFTP
+                                        && x.IsReadyForArchival && x.IsArchived == false
+                                        && x.ProcessingWorkstation == Environment.MachineName).ToList();
+                        //Continue to next entity if nothing to process
+                        if (summaryList.Count == 0)
+                        {
+                            Globals.DBLogger.InfoFormat("ArchiveInboundFiles: Nothing to Archive for {0}...", entity.EntityID);
+                            continue;
+                        }
+                        using (SFTPHelper sftpHelper = new SFTPHelper())
+                        {
+                            Globals.DBLogger.InfoFormat("ArchiveInboundFiles: Archiving Files for Entity: {0}...", entity.EntityID);
+                            //Scan through all summary records
+                            foreach (InboundProcessingSummary summary in summaryList)
+                            {
+                                Globals.DBLogger.InfoFormat("ArchiveInboundFiles: Archiving for Entity: {0} & File:{1}...", entity.EntityID, summary.InboundFileName);
+                                if (string.IsNullOrWhiteSpace(summary.LocalSourceFilePath))
+                                {
+                                    continue;
+                                }
+                                //Move Local File(s)
+                                //Identify Local & SFTP Target folders
+                                localTarget = string.Format(@"{0}{1}\{2}\", Globals.LocalInboundRootFolder, entity.EntityID,
+                                        ((summary.RowsSuccessful > 0 || summary.RowsTotal == 0) ? "Success" : "Failure"));
+                                sftpTarget = string.Format(@"{0}{1}/{2}/", Globals.SFTPInboundRootFolder, entity.EntityID,
+                                        ((summary.RowsSuccessful > 0 || summary.RowsTotal == 0) ? "Success" : "Failure"));
+
+
+                                //Set SFTP Source for deletion
+                                sftpSource = string.Format(@"{0}{1}/", Globals.SFTPInboundRootFolder, entity.EntityID);
+
+                                //Upload local file to SFTP, Delete SFTP file and then do local movement
+                                fi = new FileInfo(summary.LocalSourceFilePath);
+                                di = fi.Directory;
+                                //Folder may contain CSV and associated Control File
+                                foreach (FileInfo fileSource in di.GetFiles(string.Format("{0}.*", summary.InboundFileName)))
+                                {
+                                    //Process only CSV, XLS, GPG and TXT files
+                                    if (!fileSource.Extension.StartsWith($".{entity.FileInputType}", StringComparison.OrdinalIgnoreCase)
+                                        && !fileSource.Extension.Equals(".txt", StringComparison.OrdinalIgnoreCase)
+                                        && !fileSource.Extension.Equals(Globals.CryptoFileExtension, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        continue;
+                                    }
+                                    //Move SFTP File(s)
+                                    sftpTargetFile = $"{sftpTarget}{fileSource.Name}";
+                                    sftpSourceFile = $"{sftpSource}{fileSource.Name}";
+                                    // Upload local copy individual files and then remove file
+                                    bResult = sftpHelper.MoveOrUploadFile(sftpSourceFile, sftpTargetFile, fileSource.FullName);
+                                    if (bResult)
+                                    {
+                                        if (fileSource.Extension.StartsWith($".{entity.FileInputType}", StringComparison.OrdinalIgnoreCase)
+                                            || fileSource.Extension.Equals(Globals.CryptoFileExtension, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            summary.SFTPSourceFilePath = sftpTargetFile;
+                                        }
+                                    }
+
+                                    //Move local file
+                                    fi = new FileInfo(Path.Combine(localTarget, fileSource.Name));
+                                    if (fi.Exists)
+                                        fi.Delete();
+                                    //copy to target
+                                    fileSource.MoveTo(fi.FullName);
+                                    if (fileSource.Extension.StartsWith($".{entity.FileInputType}", StringComparison.OrdinalIgnoreCase)
+                                        || fileSource.Extension.Equals(Globals.CryptoFileExtension, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        summary.LocalSourceFilePath = fi.FullName;
+                                    }
+                                }
+                                //Update Archived flag
+                                summary.IsArchived = true;
+                                summary.ArchivalTime = DateTime.Now;
+                                dbContext.SaveChanges();
+                                bResult = true;
+                            }
+                        }
+                    }
+                }
+                Globals.DBLogger.Info("ArchiveInboundFiles: Archival Completed.");
+                return bResult;
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error(string.Format("ArchiveInboundFiles: Error: {0}", ex.Message), ex);
+                return false;
+            }
+
+        }
+    }
+}
