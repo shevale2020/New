@@ -1,0 +1,412 @@
+using ABSAPGateway.EFLibrary;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace ABSAPGateway.ExcHelper
+{
+    public static class ExecHelper
+    {
+        public static bool ProcessInboundEntities()
+        {
+            try
+            {
+                bool bResult = false;
+                using (GatewayDBContext dbContext = new GatewayDBContext())
+                {
+                    //Populate inbound entities if not present
+                    if (dbContext.InboundEntities.Count() == 0)
+                        EFLibraryUtils.VerifyMetadata();
+                    //Populate inbound entity fields if not present
+                    if (dbContext.InboundEntityFields.Count() == 0)
+                        EFLibraryUtils.VerifyMetadata();
+                    //Verify inbound folder structure is available or not
+                    SFTPCommunicator.InboundFileSync.VerifySFTPInboundFolders();
+                    //Get list of entities for sync
+                    List<InboundEntity> inboundList = dbContext.InboundEntities.AsNoTracking()
+                        .Where(x => x.IsEntitySyncEnabled).OrderBy(x => x.ProcessingPriority).ToList();
+                    foreach (InboundEntity item in inboundList)
+                    {
+                        bResult = ExecHelper.ProcessInboundEntity(item.EntityID);
+                    }
+                }
+                return bResult;
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error(String.Format("ProcessInboundEntities: Entity:{0} Error while executing.", ex.Message), ex);
+                return false;
+            }
+            finally
+            {
+                Globals.FlushLogBuffers();
+            }
+        }
+
+        public static bool ProcessInboundEntity(string entityID)
+        {
+            try
+            {
+                //Additional check to find out if metadata is present or not
+                using (GatewayDBContext dbContext = new GatewayDBContext())
+                {
+                    //Populate inbound entities if not present
+                    if (dbContext.InboundEntities.Count() == 0)
+                        EFLibraryUtils.VerifyMetadata();
+                    //Populate inbound entity fields if not present
+                    if (dbContext.InboundEntityFields.Count() == 0)
+                        EFLibraryUtils.VerifyMetadata();
+                }
+                //Continue with normal processing
+                bool bResult = false;
+                SFTPCommunicator.InboundFileSync fs = null;
+                Globals.DBLogger.InfoFormat("ProcessInboundEntity: Entity:{0} Archive processed files...", entityID);
+                fs = new SFTPCommunicator.InboundFileSync();
+                bResult = fs.ArchiveInboundFiles(entityID);
+
+                Globals.DBLogger.InfoFormat("ProcessInboundEntity: Entity:{0} Downloading inbound files...", entityID);
+                fs = new SFTPCommunicator.InboundFileSync();
+                bResult = fs.DownloadInboundFiles(entityID);
+                //if (!bResult) return false;
+
+                Globals.DBLogger.InfoFormat("ProcessInboundEntity: Entity:{0} Inbound file download completed.", entityID);
+                //Process all inbound entities
+                Globals.DBLogger.InfoFormat("ProcessInboundEntity: Entity:{0} Invoking Inbound Entity Processing...", entityID);
+                InboundProcessing.ProcessInboundFile inboundObj = new InboundProcessing.ProcessInboundFile();
+                bResult = inboundObj.ProcessAllFiles(entityID);
+                //if (!bResult) return false;
+
+                Globals.DBLogger.InfoFormat("ProcessInboundEntity: Entity:{0} Completed Processing.", entityID);
+                //Upload results of inbound files
+                Globals.DBLogger.InfoFormat("ProcessInboundEntity: Entity:{0} Uploading inbound result files...", entityID);
+                fs = new SFTPCommunicator.InboundFileSync();
+                bResult = fs.UploadInboundResults(entityID);
+                Globals.DBLogger.InfoFormat("ProcessInboundEntity: Entity:{0} Inbound result file upload complete.", entityID);
+
+                //Send out pending emails
+                EmailGenerator emailGen = new EmailGenerator();
+                bResult = emailGen.SendPendingEmails();
+                return bResult;
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error(String.Format("ProcessInboundEntity: Entity:{0} Error while executing.", ex.Message), ex);
+                return false;
+            }
+            finally
+            {
+                Globals.FlushLogBuffers();
+            }
+        }
+
+        public static bool CreateInboundFolders()
+        {
+            bool bResult = false;
+            try
+            {
+                Globals.DBLogger.Info("CreateInboundFolders...");
+                bResult = Globals.VerifyLocalInboundFolders();
+                bResult = SFTPCommunicator.InboundFileSync.VerifySFTPInboundFolders();
+                return bResult;
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error(string.Format("CreateInboundFolders: Error while executing. {0}", ex.Message), ex);
+                return false;
+            }
+            finally
+            {
+                Globals.FlushLogBuffers();
+            }
+        }
+        static public bool ProcessOutboundEntity(string entityID, bool uploadToSFTP)
+        {
+            try
+            {
+                OutboundEntity outEntity = null;
+                //Additional check to find out if metadata is present or not
+                using (GatewayDBContext dbContext = new GatewayDBContext())
+                {
+                    //Populate outbound entities if not present
+                    if (dbContext.OutboundEntities.Count() == 0)
+                        EFLibraryUtils.VerifyMetadata();
+                    outEntity = dbContext.OutboundEntities.Where(x => x.EntityID.Equals(entityID, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
+                    if (outEntity == null)
+                    {
+                        Globals.DBLogger.Error($"ProcessOutboundEntity: [{entityID}] Entity Not Configured in database...");
+                        return false;
+                    }
+                }
+                //Verify outbound folder structure is available or not
+                if (uploadToSFTP)
+                    SFTPCommunicator.OutboundFileSync.VerifySFTPOutboundFolders();
+                //Continue with normal processing            
+                bool bResult = false;
+                OutboundProcessingSummary outSummary = null;
+                OutboundProcessing.GenerateOutboundFile outboundObj = null;
+                SFTPCommunicator.OutboundFileSync fs = null;
+
+                outboundObj = new OutboundProcessing.GenerateOutboundFile();
+                //Process APOSPosting File
+                Globals.DBLogger.Info("ProcessOutboundEntity:Invoking Generate Outbound CSV File...");
+                bResult = outboundObj.ExtractAndGenerateFile(outEntity, out outSummary);
+                Globals.DBLogger.Info($"ProcessOutboundEntity:Completed Outbound CSV Generation [{outSummary.OutboundFileName}].");
+
+                //Upload to SFTP if requested
+                if (uploadToSFTP && bResult)
+                {
+                    fs = new SFTPCommunicator.OutboundFileSync();
+                    bResult = fs.UploadOutboundFiles();
+                }
+                //Send out pending emails
+                EmailGenerator emailGen = new EmailGenerator();
+                bResult = emailGen.SendPendingEmails();
+                //Return the result
+                return bResult;
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error(String.Format("ProcessOutboundEntity: Error while executing : {0}", ex.Message), ex);
+                return false;
+            }
+            finally
+            {
+                Globals.FlushLogBuffers();
+            }
+        }
+
+        static public int AddExecRecord(string[] commands)
+        {
+            try
+            {
+                GatewayExecutionRecord execRecord = null;
+                using (GatewayDBContext dbContext = new GatewayDBContext())
+                {
+                    execRecord = new GatewayExecutionRecord();
+                    execRecord.MachineName = Environment.MachineName;
+                    string ipAddr = ExecHelper.GetHostIPAddresses(); //2018-04-01 Add all IP Address
+                    execRecord.IPAddress = ((ipAddr.Length > 100) ? ipAddr.Substring(0, 100) : ipAddr);
+                    //Record incoming parameters
+                    if (commands.Count() > 0)
+                        execRecord.Command = commands[0];
+                    if (commands.Count() > 1)
+                        execRecord.SubCommand = commands[1];
+                    //Get exe path and execution folder
+                    FileInfo fiExe = new FileInfo(System.Reflection.Assembly.GetEntryAssembly().Location);
+                    execRecord.ExePath = fiExe.FullName;
+                    execRecord.ExecutionFolder = fiExe.DirectoryName;
+                    execRecord.ExeStartTime = DateTime.Now;
+                    execRecord.IsRunning = true;
+                    dbContext.GatewayExecutionRecords.Add(execRecord);
+                    dbContext.SaveChanges();
+                }
+                if (execRecord != null)
+                    return execRecord.ExecutionID;
+                else
+                    return 0;
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error(String.Format("AddExecRecord: Error while executing : {0}", ex.Message), ex);
+                return 0;
+            }
+            finally
+            {
+                Globals.FlushLogBuffers();
+            }
+        }
+
+        static public bool UpdateExecRecord(int execRecordID)
+        {
+            try
+            {
+                using (GatewayDBContext dbContext = new GatewayDBContext())
+                {
+                    //find execution record
+                    GatewayExecutionRecord execRecord = null;
+                    execRecord = dbContext.GatewayExecutionRecords.Where(x => x.ExecutionID == execRecordID).FirstOrDefault();
+                    if (execRecord != null)
+                    {
+                        execRecord.ExeEndTime = DateTime.Now;
+                        execRecord.IsRunning = false;
+                        dbContext.SaveChanges();
+                    }
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error(String.Format("UpdateExecRecord: Error while executing : {0}", ex.Message), ex);
+                return false;
+            }
+            finally
+            {
+                Globals.FlushLogBuffers();
+            }
+        }
+
+        static public bool CleanLog4Net(int DaysToKeep)
+        {
+            try
+            {
+                Globals.DBLogger.Info("CleanLog4Net: Cleaning Log4Net Table...");
+                using (GatewayDBContext dbContext = new GatewayDBContext())
+                {
+                    //Cleanup all messages till
+                    DateTime dtErrorsTill = DateTime.Now.AddDays(-10 * System.Math.Abs(DaysToKeep));
+                    //var log4NetAll = dbContext.Log4Net.RemoveRange(dbContext.Log4Net.Where(x => x.Date < dtErrorsTill));
+                    var log4NetAll = dbContext.Database.ExecuteSqlCommand("DELETE FROM [Log4Net] WHERE [Date] < @P0;", dtErrorsTill);
+                    if (log4NetAll > 0)
+                    {
+                        dbContext.SaveChanges();
+                    }
+                    //Cleanup Info Messages till
+                    DateTime dtMessagesTill = DateTime.Now.AddDays(-1 * System.Math.Abs(DaysToKeep));
+                    //var log4NetInfo = dbContext.Log4Net.RemoveRange(dbContext.Log4Net.Where(x => x.Date < dtMessagesTill && x.Level != "ERROR"));
+                    var log4NetInfo = dbContext.Database.ExecuteSqlCommand("DELETE FROM [Log4Net] WHERE [Level] <> 'ERROR' AND [Date] < @P0;", dtMessagesTill);
+                    if (log4NetInfo > 0)
+                    {
+                        dbContext.SaveChanges();
+                    }
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error(String.Format("CleanLog4Net: Error while executing : {0}", ex.Message), ex);
+                return false;
+            }
+            finally
+            {
+                Globals.FlushLogBuffers();
+            }
+        }
+        static public bool DeleteExecRecord(int DaysToKeep)
+        {
+            try
+            {
+                Globals.DBLogger.Info("CleanLog4Net: Cleaning Log4Net Table...");
+                using (GatewayDBContext dbContext = new GatewayDBContext())
+                {
+                    //Cleanup all messages till
+                    DateTime dtErrorsTill = DateTime.Now.AddDays(-10 * System.Math.Abs(DaysToKeep));
+                    //var log4NetAll = dbContext.Log4Net.RemoveRange(dbContext.Log4Net.Where(x => x.Date < dtErrorsTill));
+                    var log4NetAll = dbContext.Database.ExecuteSqlCommand("DELETE FROM [Log4Net] WHERE [Date] < @P0;", dtErrorsTill);
+                    if (log4NetAll > 0)
+                    {
+                        dbContext.SaveChanges();
+                    }
+                    //Cleanup Info Messages till
+                    DateTime dtMessagesTill = DateTime.Now.AddDays(-1 * System.Math.Abs(DaysToKeep));
+                    //var log4NetInfo = dbContext.Log4Net.RemoveRange(dbContext.Log4Net.Where(x => x.Date < dtMessagesTill && x.Level != "ERROR"));
+                    var log4NetInfo = dbContext.Database.ExecuteSqlCommand("DELETE FROM [Log4Net] WHERE [Level] <> 'ERROR' AND [Date] < @P0;", dtMessagesTill);
+                    if (log4NetInfo > 0)
+                    {
+                        dbContext.SaveChanges();
+                    }
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error(String.Format("DeleteExecRecord: Error while executing : {0}", ex.Message), ex);
+                return false;
+            }
+            finally
+            {
+                Globals.FlushLogBuffers();
+            }
+        }
+        static public string GetHostIPAddresses()
+        {
+            try
+            {
+                StringBuilder ipAddr = new StringBuilder(100);
+                bool bFirst = true;
+                //execRecord.IPAddress = Dns.GetHostEntry(execRecord.MachineName).AddressList[0].ToString();
+                System.Net.IPHostEntry host = System.Net.Dns.GetHostEntry(System.Net.Dns.GetHostName());
+                foreach (System.Net.IPAddress ip in host.AddressList)
+                {
+                    if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                    {
+                        ipAddr.AppendFormat("{0}{1}", (bFirst ? "" : ";"), ip.ToString());
+                        bFirst = false;
+                    }
+                }
+                return ipAddr.ToString();
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error(String.Format("GetHostIPAddresses: Error while executing : {0}", ex.Message), ex);
+                return "";
+            }
+            finally
+            {
+                Globals.FlushLogBuffers();
+            }
+        }
+        static public bool UpdateDashboardStatus(DashboardEntityType type, bool isStatusGood, string message)
+        {
+            try
+            {
+                DashboardEntity dashboardEntity = null;
+                using (GatewayDBContext dbContext = new GatewayDBContext())
+                {
+                    dashboardEntity = dbContext.DashboardSummary.Where(x =>
+                        (x.Type.Equals(type.ToString(), StringComparison.OrdinalIgnoreCase)))
+                        .FirstOrDefault();
+
+                    if (dashboardEntity == null)
+                    {
+                        dashboardEntity = new DashboardEntity();
+                        dbContext.DashboardSummary.Add(dashboardEntity);
+                        dashboardEntity.Type = type.ToString();
+                    }
+                    dashboardEntity.IsStatusGood = isStatusGood;
+                    dashboardEntity.StatusMessage = message;
+                    //2018-04-01 Add all IP Address
+                    dashboardEntity.Workstation = string.Format("[{0}]:[{1}]", Environment.MachineName, ExecHelper.GetHostIPAddresses());
+                    //Add number processed files
+                    DateTime processedFrom = DateTime.Now.AddDays(-1);
+                    switch (type)
+                    {
+                        case DashboardEntityType.InboundService:
+                            dashboardEntity.FilesProcessed = dbContext.InboundProcessingSummaries
+                                .Where(x => x.ProcessingStartedTime > processedFrom).Count();
+                            break;
+                        case DashboardEntityType.OutboundService:
+                            dashboardEntity.FilesProcessed = dbContext.OutboundProcessingSummaries
+                               .Where(x => x.ProcessingStartedTime > processedFrom).Count();
+                            break;
+                        case DashboardEntityType.SFTPServer:
+                        default:
+                            dashboardEntity.FilesProcessed = 0;
+                            break;
+                    }
+
+                    dbContext.SaveChanges();
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error(String.Format("AddExecRecord: Error while executing : {0}", ex.Message), ex);
+                return false;
+            }
+            finally
+            {
+                Globals.FlushLogBuffers();
+            }
+        }
+    }
+
+    public enum DashboardEntityType
+    {
+        InboundService,
+        OutboundService,
+        SFTPServer
+    }
+}
