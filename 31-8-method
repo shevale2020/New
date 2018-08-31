@@ -1,15 +1,10 @@
-    public static bool DeleteExecRecord(int MonthsToKeep)
+public static bool DeleteExecRecord(int MonthsToKeep)
         {
             try
             {
                 Globals.DBLogger.Info("DeleteExecRecord : Cleaning All Table...");
                 using (GatewayDBContext dbContext = new GatewayDBContext())
                 {
-
-                    DateTime date = DateTime.Now.AddMonths(-MonthsToKeep);
-                    SFTPHelper SFTPHelper = new SFTPHelper();
-                    var infoListForIPS = dbContext.InboundProcessingSummaries
-                               .Where(x => x.ProcessingStartedTime < date).ToList();
                     List<InboundProcessingSummary> SuccessIPS = new List<InboundProcessingSummary>();
                     List<InboundProcessingSummary> FailIPS = new List<InboundProcessingSummary>();
                     List<OutboundFilesSummary> SuccessOFS = new List<OutboundFilesSummary>();
@@ -17,6 +12,14 @@
                     List<OutboundProcessingSummary> SuccessOPS = new List<OutboundProcessingSummary>();
                     List<OutboundProcessingSummary> FailOPS = new List<OutboundProcessingSummary>();
                     List<Dictionary<string, string>> _FileStatusList = new List<Dictionary<string, string>>();
+                    //get date before 3 month
+                    DateTime date = DateTime.Now.AddMonths(-MonthsToKeep);
+                    SFTPHelper SFTPHelper = new SFTPHelper();
+
+                    //get records from InboundProcessingSummaries
+                    var infoListForIPS = dbContext.InboundProcessingSummaries
+                               .Where(x => x.ProcessingStartedTime < date).ToList();
+                   
                     if (infoListForIPS != null)
                     {
                         foreach (var infoIPS in infoListForIPS)
@@ -26,7 +29,7 @@
 
                                 var LocalSourceFileName = Path.GetFileName(infoIPS.LocalSourceFilePath);
                                 var LocalSourceFilePath = Path.GetDirectoryName(infoIPS.LocalSourceFilePath);
-
+                                //get all Local files from Direcotory
                                 string[] AllLocalSourceFiles = System.IO.Directory.GetFiles(LocalSourceFilePath, "'"+ LocalSourceFileName + "'.*");
                                 Dictionary<string, string> IPSLocalSourceFileList = new Dictionary<string, string>();
                                 foreach (string f in AllLocalSourceFiles)
@@ -43,11 +46,12 @@
 
                                 }
                                 _FileStatusList.Add(IPSLocalSourceFileList);
+                                //delete that file on SFTP Directory
                                 SFTPHelper.DeleteSFTPFile(infoIPS.LocalSuccessFilePath);
 
                                 var LocalSuccessFileName = Path.GetFileName(infoIPS.LocalSuccessFilePath);
                                 var LocalSuccessFilePath = Path.GetDirectoryName(infoIPS.LocalSuccessFilePath);
-
+                                //get all Local files from Direcotory
                                 string[] AllLocalSuccessFiles = System.IO.Directory.GetFiles(LocalSuccessFilePath, "'" + LocalSuccessFileName + "'.*");
                                 Dictionary<string, string> IPSLocalSuccessFileList = new Dictionary<string, string>();
                                 foreach (string f in AllLocalSuccessFiles)
@@ -65,11 +69,12 @@
                                 }
 
                                 _FileStatusList.Add(IPSLocalSuccessFileList);
+                                //delete that file on SFTP Directory
                                 SFTPHelper.DeleteSFTPFile(infoIPS.SFTPSuccessFilePath);
 
                                 var LocalFailedFileName = Path.GetFileName(infoIPS.LocalFailedFilePath);
                                 var LocalFailedFilePath = Path.GetDirectoryName(infoIPS.LocalFailedFilePath);
-
+                                //get all Local files from Direcotory
                                 string[] AllLocalFailedFiles = System.IO.Directory.GetFiles(LocalFailedFilePath, "'" + LocalFailedFileName + "'.*");
                                 Dictionary<string, string> IPLocalFailedFileList = new Dictionary<string, string>();
                                 foreach (string f in AllLocalFailedFiles)
@@ -92,17 +97,17 @@
                             {
                                 FailIPS.Add(infoIPS);
                             }
+                            //delete that file on SFTP Directory
                             SFTPHelper.DeleteSFTPFile(infoIPS.SFTPFailedFilePath);
+                            //delete Data From Database
                             dbContext.InboundProcessingSummaries.Remove(infoIPS);
                             dbContext.SaveChanges();
 
                         }
                     }
 
-                    //GatewayDBContext newObj = new GatewayDBContext();
-                    //List<OutboundFilesSummary> infoListForOFS = dbContext
-                    //.Database.SqlQuery<OutboundFilesSummary>("select ofs.* from OutboundFilesSummaries ofs inner join OutboundProcessingSummaries ops on ofs.OutboundFileName = ops.OutboundFileName where ops.ProcessingStartedTime <'" + dtErrorsTill + "' ")
-                    //.ToList();
+                 
+                    //get records from OutboundFilesSummaries
 
                     var infoListForOFS = dbContext.OutboundFilesSummaries.Join(
                                                  dbContext.OutboundProcessingSummaries,
@@ -122,7 +127,7 @@
                             {
                                 var LocalFileName = Path.GetFileName(infoOFS.LocalFilePath);
                                 var LocalFilePath = Path.GetDirectoryName(infoOFS.LocalFilePath);
-
+                                //get all Local files from Direcotory
                                 string[] AllLocalFiles = System.IO.Directory.GetFiles(LocalFilePath, "'" + LocalFileName + "'.*");
                                 Dictionary<string, string> OFSLocalFilesList = new Dictionary<string, string>();
                                 foreach (string f in AllLocalFiles)
@@ -145,12 +150,15 @@
                             {
                                 FailOFS.Add(infoList);
                             }
-
+                            //delete that file on SFTP Directory
                             SFTPHelper.DeleteSFTPFile(infoOFS.SFTPFilePath);
+                            //delete Data From Database
                             contextDB.OutboundFilesSummaries.Remove(infoList);
                             contextDB.SaveChanges();
                         }
                     }
+
+                    //get records from OutboundProcessingSummaries
 
                     var infoListForOPS = dbContext.OutboundProcessingSummaries
                        .Where(x => x.ProcessingStartedTime < date).ToList();
@@ -160,9 +168,10 @@
                         {
                             try
                             {
+                                
                                 var LocalFileName = Path.GetFileName(infoOPS.LocalFilePath);
                                 var LocalFilePath = Path.GetDirectoryName(infoOPS.LocalFilePath);
-
+                                //get all Local files from Direcotory
                                 string[] AllLocalFiles = System.IO.Directory.GetFiles(LocalFilePath, "'" + LocalFileName + "'.*");
                                 Dictionary<string, string> OPSLocalFilesList = new Dictionary<string, string>();
                                
@@ -185,12 +194,15 @@
                             {
                                 FailOPS.Add(infoOPS);
                             }
+                            //delete that file on SFTP Directory
                             SFTPHelper.DeleteSFTPFile(infoOPS.SFTPFilePath);
+                            //delete Data From Database
                             dbContext.OutboundProcessingSummaries.Remove(infoOPS);
                             dbContext.SaveChanges();
                         }
                     }
                     EmailGenerator emailGen = new EmailGenerator();
+                    //foe mail 
                     emailGen.DeleteProcessingSummaryMessage(SuccessIPS,FailIPS,SuccessOFS,FailOFS,SuccessOPS,FailOPS);
                 }
                
