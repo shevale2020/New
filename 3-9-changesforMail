@@ -1,0 +1,73 @@
+  //Create email body
+                        _sbBody.AppendLine("<p>Dear <strong>Team</strong>,</p>");
+                        _sbBody.AppendLine("<p>Following is Delete summary of Inbound, Outbound and Outbound File</p>");
+
+                        //Inbound 
+                        _sbBody.AppendLine("<br>");
+                        _sbBody.AppendLine("<p><strong>Inbound File Processing  Summary</strong>:</p>");
+                        _sbBody.AppendLine("<table>");
+                        var Entitys = string.Join(",<br>", IPSSuccess.Select(x => x.Value.EntityID).Distinct());
+                        List<string> sccessFile = new List<string>();
+                        sccessFile.AddRange(IPSSuccess.Where(x => x.Key == "LocalSourceFilePath").Select(x => x.Value.LocalSourceFilePath).Distinct());
+                        sccessFile.AddRange(IPSSuccess.Where(x => x.Key == "LocalSuccessFilePath").Select(x => x.Value.LocalSuccessFilePath).Distinct());
+                        sccessFile.AddRange(IPSSuccess.Where(x => x.Key == "LocalFailedFilePath").Select(x => x.Value.LocalFailedFilePath).Distinct());
+                        sccessFile.AddRange(IPSSuccess.Where(x => x.Key == "SFTPSourceFilePath").Select(x => x.Value.SFTPSourceFilePath).Distinct());
+                        sccessFile.AddRange(IPSSuccess.Where(x => x.Key == "SFTPSuccessFilePath").Select(x => x.Value.SFTPSuccessFilePath).Distinct());
+                        sccessFile.AddRange(IPSSuccess.Where(x => x.Key == "SFTPFailedFilePath").Select(x => x.Value.SFTPFailedFilePath).Distinct());
+                        var sccessFileList = string.Join(",<br>", sccessFile);
+
+                        List<string> FailFiles = new List<string>();
+                        FailFiles.AddRange(IPSFail.Where(x => x.Key == "LocalSourceFilePath").Select(x => x.Value.LocalSourceFilePath).Distinct());
+                        FailFiles.AddRange(IPSFail.Where(x => x.Key == "LocalSuccessFilePath").Select(x => x.Value.LocalSuccessFilePath).Distinct());
+                        FailFiles.AddRange(IPSFail.Where(x => x.Key == "LocalFailedFilePath").Select(x => x.Value.LocalFailedFilePath).Distinct());
+                        FailFiles.AddRange(IPSFail.Where(x => x.Key == "SFTPSourceFilePath").Select(x => x.Value.SFTPSourceFilePath).Distinct());
+                        FailFiles.AddRange(IPSFail.Where(x => x.Key == "SFTPSuccessFilePath").Select(x => x.Value.SFTPSuccessFilePath).Distinct());
+                        FailFiles.AddRange(IPSFail.Where(x => x.Key == "SFTPFailedFilePath").Select(x => x.Value.SFTPFailedFilePath).Distinct());
+
+                        var failFileList = string.Join(",<br>", FailFiles);
+
+                        _sbBody.AppendLine("<tr><th>Entity</th><th>No of Files Delete</th><th>No of Files Problem Delete</th><th>Successfully Deleted  FileName</th><th>Failed In deleting FileName</th></tr>");
+                        _sbBody.AppendFormat("<tr><td>{0}<td>", Entitys);
+                        _sbBody.AppendFormat("<td>{0}</td>", OFSSuccess.Count.ToString());
+                        _sbBody.AppendFormat("<td>{0}</td>", OFSFail.Count.ToString());
+                        _sbBody.AppendFormat("<td>{0}", sccessFileList);
+                        _sbBody.AppendFormat("<td>{0}", failFileList);
+                        _sbBody.AppendLine("</tr>");
+                        _sbBody.AppendLine("</table>");
+                        _sbBody.AppendLine("<br>");
+
+                        //Outbound File 
+                        _sbBody.AppendLine("<br>");
+                        _sbBody.AppendLine("<p><strong>Outbound File Processing Summary</strong>:</p>");
+                        _sbBody.AppendLine("<table>");
+                        _sbBody.AppendLine("<tr><th>Entity</th><th>No of Files Delete</th><th>No of Files Problem Delete</th><th>Successfully Deleted Local FileName</th><th>Failed In deleting Local FileName</th><th>Successfully Deleted SFTP FileName</th><th>Failed In deleting SFTP FileName</th></tr>");
+                        _sbBody.AppendFormat("<tr><td>{0}<td>", string.Join(",<br>", OFSSuccess.Select(x => x.Value.EntityID).Distinct()));
+                        _sbBody.AppendFormat("<td>{0}</td>", OFSSuccess.Count.ToString());
+                        _sbBody.AppendFormat("<td>{0}</td>", OFSFail.Count.ToString());
+                        _sbBody.AppendFormat("<td>{0}", string.Join(",<br>", OFSSuccess.Where(x => x.Key == "LocalFilePath").Select(x => x.Value.LocalFilePath).Distinct()));
+                        _sbBody.AppendFormat("<td>{0}", string.Join(",<br>", OFSFail.Where(x => x.Key == "LocalFilePath").Select(x => x.Value.LocalFilePath).Distinct()));
+                        _sbBody.AppendFormat("<td>{0}", string.Join(",<br>", OFSSuccess.Where(x => x.Key == "SFTPFilePath").Select(x => x.Value.SFTPFilePath).Distinct()));
+                        _sbBody.AppendFormat("<td>{0}", string.Join(",<br>", OFSFail.Where(x => x.Key == "SFTPFilePath").Select(x => x.Value.SFTPFilePath).Distinct()));
+                        _sbBody.AppendLine("</tr>");
+                        _sbBody.AppendLine("</table>");
+                        _sbBody.AppendLine("<br>");
+
+                        //Outbound 
+                        _sbBody.AppendLine("<br>");
+                        _sbBody.AppendLine("<p><strong>Outbound File Processing Summary</strong>:</p>");
+                        _sbBody.AppendLine("<table>");
+                        _sbBody.AppendLine("<tr><th>Entity</th><th>No of Files Delete</th><th>No of Files Problem Delete</th><th>Successfully Deleted Local FileName</th><th>Failed In deleting Local FileName</th><th>Successfully Deleted SFTP FileName</th><th>Failed In deleting SFTP FileName</th></tr>");
+                        _sbBody.AppendFormat("<tr><td>{0}<td>", string.Join(",<br>", OPSSuccess.Select(x => x.Value.EntityID).Distinct()));
+                        _sbBody.AppendFormat("<td>{0}</td>", OPSSuccess.Count.ToString());
+                        _sbBody.AppendFormat("<td>{0}</td>", OPSFail.Count.ToString());
+                        _sbBody.AppendFormat("<td>{0}", string.Join(",<br>", OPSSuccess.Where(x => x.Key == "LocalFilePath").Select(x => x.Value.LocalFilePath).Distinct()));
+                        _sbBody.AppendFormat("<td>{0}", string.Join(",<br>", OPSFail.Where(x => x.Key == "LocalFilePath").Select(x => x.Value.LocalFilePath).Distinct()));
+                        _sbBody.AppendFormat("<td>{0}", string.Join(",<br>", OFSSuccess.Where(x => x.Key == "SFTPFilePath").Select(x => x.Value.SFTPFilePath).Distinct()));
+                        _sbBody.AppendFormat("<td>{0}", string.Join(",<br>", OFSFail.Where(x => x.Key == "SFTPFilePath").Select(x => x.Value.SFTPFilePath).Distinct()));
+                        _sbBody.AppendLine("</tr>");
+                        _sbBody.AppendLine("</table>");
+                        _sbBody.AppendLine("<br>");
+
+                        //Total Count
+                        _sbBody.AppendLine(_emailFooter);
+                        _message.Subject = $"Delete Processing summary Date:{DateTime.Now:MM/dd/yyyy} , Inbound Success:{IPSSuccess.Count} ,Inbound Fail:{IPSFail.Count} , Outbound File Success:{OFSSuccess.Count},Outbound File Fail:{OFSFail.Count}, Outbound Success:{OPSSuccess.Count}, Outbound Fail:{OPSFail.Count}";
