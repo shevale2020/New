@@ -1,0 +1,33 @@
+if (infoIPS.LocalSourceFilePath != "")
+                                {
+                                    var LocalSourceFileName = Path.GetFileName(infoIPS.LocalSourceFilePath);
+                                    var LocalSourceFilePath = Path.GetDirectoryName(infoIPS.LocalSourceFilePath);
+                                    try
+                                    {
+                                        //get related files from Local Directory
+                                        string[] AllLocalSourceFiles = System.IO.Directory.GetFiles(LocalSourceFilePath, LocalSourceFileName + ".*");
+                                        Dictionary<string, string> IPSLocalSourceFileList = new Dictionary<string, string>();
+                                        foreach (string f in AllLocalSourceFiles)
+                                        {
+                                            infoIPS.LocalSourceFilePath = f;
+                                            System.IO.File.Delete(f);
+                                            SuccessIPS.Add("LocalSourceFilePath",infoIPS);
+                                        }
+                                    }
+                                    catch
+                                    {
+                                        FailIPS.Add("LocalSourceFilePath",infoIPS);
+                                    }
+                                    try
+                                    {
+                                        //delete that file on SFTP Directory
+                                        IsSFTPFileStatus=SFTPHelper.DeleteSFTPFile(infoIPS.SFTPSourceFilePath);
+                                        if(IsSFTPFileStatus==false)
+                                        SuccessIPS.Add("SFTPSourceFilePath", infoIPS);
+
+                                    }
+                                    catch (Exception)
+                                    {
+                                        FailIPS.Add("SFTPSourceFilePath", infoIPS);
+                                    }
+                                }
