@@ -1,0 +1,344 @@
+  public Dictionary<OutboundProcessingSummary, Tuple<List<string>, List<string>>> PurgeOutboundData(DateTime dtPurgeTill)
+        {
+            Dictionary<OutboundProcessingSummary, Tuple<List<string>, List<string>>> summaryResults = new Dictionary<OutboundProcessingSummary, Tuple<List<string>, List<string>>>();
+            try
+            {
+                Globals.DBLogger.Info("PurgeInboundData : Cleaning InboundProcessingSummary Table...");
+                using (SFTPHelper sftpHelper = new SFTPHelper())
+                using (GatewayDBContext dbContext = new GatewayDBContext())
+                {
+                    //get records from InboundProcessingSummaries
+                    var outboundSummaries = dbContext.OutboundProcessingSummaries
+                               .Where(x => x.ProcessingStartedTime < dtPurgeTill).ToList();
+
+                    foreach (OutboundProcessingSummary summary in outboundSummaries)
+                    {
+                        List<string> filesDeleted = new List<string>();
+                        List<string> filesDeleteFailed = new List<string>();
+                        try
+                        {
+                            //Delete local files
+                            DirectoryInfo dr = new DirectoryInfo(Path.Combine(Globals.LocalOutboundRootFolder, summary.EntityID));
+                            List<FileInfo> files = dr.GetFiles($"{summary.OutboundFileName}*.*", SearchOption.AllDirectories).ToList();
+                            foreach (var file in files)
+                            {
+                                try
+                                {
+                                    file.Delete();
+                                    filesDeleted.Add(file.FullName);
+                                }
+                                catch (Exception)
+                                {
+                                    filesDeleteFailed.Add(file.FullName);
+                                }
+                            }
+                            //Delete SFTP files
+                            string inboundRoot = $"{Globals.SFTPOutboundRootFolder}{summary.EntityID}/";
+                            List<string> sftpDeleted, sftpNotDeleted;
+                            bool bReturn = sftpHelper.DeleteSFTPFiles($"{Globals.SFTPInboundRootFolder}{summary.EntityID}/", summary.OutboundFileName, true, out sftpDeleted, out sftpNotDeleted);
+                            if (bReturn)
+                                filesDeleted.AddRange(sftpDeleted);
+                            if (sftpNotDeleted.Count > 0)
+                                filesDeleteFailed.AddRange(sftpNotDeleted);
+
+
+                            //delete recordData from database
+                            summaryResults.Add(summary, new Tuple<List<string>, List<string>>(filesDeleted, filesDeleteFailed));
+                            dbContext.OutboundProcessingSummaries.Remove(summary);
+                            dbContext.SaveChanges();
+
+                        }
+                        catch (Exception ex)
+                        {
+                            Globals.DBLogger.Error($"PurgeOutboundData: Error while executing 1 : {ex.Message}", ex);
+                        }
+                    }
+                }
+                return summaryResults;
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error($"PurgeOutboundData: Error while executing 2 : {ex.Message}", ex);
+                return summaryResults;
+            }
+            finally
+            {
+                Globals.FlushLogBuffers();
+            }
+        }
+        public Dictionary<OutboundFilesSummary, Tuple<List<string>, List<string>>> PurgeOutboundFileData(DateTime dtPurgeTill)
+        {
+           
+            Dictionary<OutboundFilesSummary, Tuple<List<string>, List<string>>> summaryResults = new Dictionary<OutboundFilesSummary, Tuple<List<string>, List<string>>>();
+            try
+            {
+                Globals.DBLogger.Info("PurgeInboundData : Cleaning InboundProcessingSummary Table...");
+                using (SFTPHelper sftpHelper = new SFTPHelper())
+                using (GatewayDBContext dbContext = new GatewayDBContext())
+                {
+                    //get records from InboundProcessingSummaries
+                    //var outboundFileSummaries1 = dbContext.OutboundFilesSummaries.Join(
+                    //                          dbContext.OutboundProcessingSummaries,
+                    //                         ofs => new { ofs.OutboundFileName },
+                    //                         ops => new { ops.OutboundFileName },
+                    //                         (ofs, ops) => new { ofs, ops })
+                    //                         .Where(o => o.ofs.OutboundFileName == o.ops.OutboundFileName
+                    //                                     && o.ops.ProcessingStartedTime < dtPurgeTill).Select(o => new { o.ofs.LocalFilePath, o.ofs.SFTPFilePath, o.ofs.EntityID ,o.ofs.OutboundFileName});
+                    List<OutboundFilesSummary> outboundFileSummaries = dbContext
+                                    .Database.SqlQuery<OutboundFilesSummary>("SELECT ofs.* FROM dbo.OutboundFilesSummary ofs inner join OutboundProcessingSummary ops on ofs.OutboundFileName=ops.OutboundFileName where ops.ProcessingStartedTime < dtPurgeTill")
+                                    .ToList();
+
+                    foreach (OutboundFilesSummary summary in outboundFileSummaries)
+                    {
+                        List<string> filesDeleted = new List<string>();
+                        List<string> filesDeleteFailed = new List<string>();
+                        try
+                        {
+                            //Delete local files
+                            DirectoryInfo dr = new DirectoryInfo(Path.Combine(Globals.LocalOutboundRootFolder, summary.EntityID));
+                            List<FileInfo> files = dr.GetFiles($"{summary.OutboundFileName}*.*", SearchOption.AllDirectories).ToList();
+                            foreach (var file in files)
+                            {
+                                try
+                                {
+                                    file.Delete();
+                                    filesDeleted.Add(file.FullName);
+                                }
+                                catch (Exception)
+                                {
+                                    filesDeleteFailed.Add(file.FullName);
+                                }
+                            }
+                            //Delete SFTP files
+                            string inboundRoot = $"{Globals.SFTPOutboundRootFolder}{summary.EntityID}/";
+                            List<string> sftpDeleted, sftpNotDeleted;
+                            bool bReturn = sftpHelper.DeleteSFTPFiles($"{Globals.SFTPInboundRootFolder}{summary.EntityID}/", summary.OutboundFileName, true, out sftpDeleted, out sftpNotDeleted);
+                            if (bReturn)
+                                filesDeleted.AddRange(sftpDeleted);
+                            if (sftpNotDeleted.Count > 0)
+                                filesDeleteFailed.AddRange(sftpNotDeleted);
+
+
+                            //delete recordData from database
+                            summaryResults.Add(summary, new Tuple<List<string>, List<string>>(filesDeleted, filesDeleteFailed));
+                            dbContext.OutboundFilesSummaries.Remove(summary);
+                            dbContext.SaveChanges();
+
+                        }
+                        catch (Exception ex)
+                        {
+                            Globals.DBLogger.Error($"PurgeOutboundFileData: Error while executing 1 : {ex.Message}", ex);
+                        }
+                    }
+                }
+                return summaryResults;
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error($"PurgeOutboundFileData: Error while executing 2 : {ex.Message}", ex);
+                return summaryResults;
+            }
+            finally
+            {
+                Globals.FlushLogBuffers();
+            }
+        }
+        
+        
+        
+          public Dictionary<InboundProcessingSummary, Tuple<List<string>, List<string>>> PurgeInboundData(DateTime dtPurgeTill)
+        {
+            Dictionary<InboundProcessingSummary, Tuple<List<string>, List<string>>> summaryResults = new Dictionary<InboundProcessingSummary, Tuple<List<string>, List<string>>>();
+            try
+            {
+                Globals.DBLogger.Info("PurgeInboundData : Cleaning InboundProcessingSummary Table...");
+                using (SFTPHelper sftpHelper = new SFTPHelper())
+                using (GatewayDBContext dbContext = new GatewayDBContext())
+                {
+                    //get records from InboundProcessingSummaries
+                    var inboundSummaries = dbContext.InboundProcessingSummaries
+                               .Where(x => x.ProcessingStartedTime < dtPurgeTill).ToList();
+
+                    foreach (InboundProcessingSummary summary in inboundSummaries)
+                    {
+                        List<string> filesDeleted = new List<string>();
+                        List<string> filesDeleteFailed = new List<string>();
+                        try
+                        {
+                            //Delete local files
+                            DirectoryInfo dr = new DirectoryInfo(Path.Combine(Globals.LocalInboundRootFolder, summary.EntityID));
+                            List<FileInfo> files = dr.GetFiles($"{summary.InboundFileName}*.*", SearchOption.AllDirectories).ToList();
+                            foreach (var file in files)
+                            {
+                                try
+                                {
+                                    file.Delete();
+                                    filesDeleted.Add(file.FullName);
+                                }
+                                catch (Exception)
+                                {
+                                    filesDeleteFailed.Add(file.FullName);
+                                }
+                            }
+                            //Delete SFTP files
+                            string inboundRoot = $"{Globals.SFTPInboundRootFolder}{summary.EntityID}/";
+                            List<string> sftpDeleted, sftpNotDeleted;
+                            bool bReturn = sftpHelper.DeleteSFTPFiles($"{Globals.SFTPInboundRootFolder}{summary.EntityID}/", summary.InboundFileName,true, out sftpDeleted, out sftpNotDeleted);
+                            if (bReturn)
+                                filesDeleted.AddRange(sftpDeleted);
+                            if (sftpNotDeleted.Count > 0)
+                                filesDeleteFailed.AddRange(sftpNotDeleted);
+
+
+                            //delete recordData from database
+                            summaryResults.Add(summary, new Tuple<List<string>, List<string>>(filesDeleted, filesDeleteFailed));
+                            dbContext.InboundProcessingSummaries.Remove(summary);
+                            dbContext.SaveChanges();
+
+                        }
+                        catch (Exception ex)
+                        {
+                            Globals.DBLogger.Error($"PurgeInboundData: Error while executing 1 : {ex.Message}", ex);
+                        }
+                    }
+                }
+                return summaryResults;
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error($"PurgeInboundData: Error while executing 2 : {ex.Message}", ex);
+                return summaryResults;
+            }
+            finally
+            {
+                Globals.FlushLogBuffers();
+            }
+        }
+        ***********************
+        
+           public bool PurgeDataSummaryMessage(Dictionary<InboundProcessingSummary, Tuple<List<string>,List<string>>> IPSSuccess, Dictionary<InboundProcessingSummary, Tuple<List<string>,List<string>>> IPSFail, Dictionary<InboundProcessingSummary, Tuple<List<string>,List<string>>> OPSFail)
+        {
+            try
+            {
+                lock (mailLock)
+                {
+                    using (GatewayDBContext dbContext = new EFLibrary.GatewayDBContext())
+                    {
+                        //Create email body
+                        _sbBody.AppendLine("<p>Dear <strong>Team</strong>,</p>");
+                        _sbBody.AppendLine("<p>Following is Delete summary of Inbound, Outbound and Outbound File</p>");
+
+                        //Inbound 
+                        _sbBody.AppendLine("<br>");
+                        _sbBody.AppendLine("<p><strong>Inbound File Processing  Summary</strong>:</p>");
+                        _sbBody.AppendLine("<table>");
+                        var Entitys = string.Join(",<br>", IPSSuccess.Select(x => x.Key.EntityID).Distinct());
+                        List<string> sccessFile = new List<string>();
+                        foreach (var item in IPSSuccess)
+                        {
+                            sccessFile.AddRange(item.Value);
+                        }
+
+                        List<string> failFile = new List<string>();
+                        foreach (var item in IPSFail)
+                        {
+                            failFile.AddRange(item.Value);
+                        }
+
+                        var failIPSList = string.Join(",<br>", failFile.Distinct());
+                        var successIPSList = string.Join(",<br>", sccessFile.Distinct());
+                        _sbBody.AppendLine("<tr><th>Entity</th><th>No of Files Delete</th><th>No of Files Problem Delete</th><th>Successfully Deleted  FileName</th><th>Failed In deleting FileName</th></tr>");
+                        _sbBody.AppendFormat("<tr><td>{0}<td>", Entitys);
+                        _sbBody.AppendFormat("<td>{0}</td>", sccessFile.Distinct().Count().ToString());
+                        _sbBody.AppendFormat("<td>{0}</td>", failFile.Count.ToString());
+                        _sbBody.AppendFormat("<td>{0}", successIPSList);
+                        _sbBody.AppendFormat("<td>{0}", failIPSList);
+                        _sbBody.AppendLine("</tr>");
+                        _sbBody.AppendLine("</table>");
+                        _sbBody.AppendLine("<br>");
+
+                        //Outbound File 
+                        var ofsEntitys = string.Join(",<br>", OFSSuccess.Select(x => x.Key.EntityID).Distinct());
+                        List<string> ofsSccessFile = new List<string>();
+                        foreach (var item in OFSSuccess)
+                        {
+                            ofsSccessFile.AddRange(item.Value);
+                        }
+
+                        List<string> ofsFailFile = new List<string>();
+                        foreach (var item in OFSFail)
+                        {
+                            ofsFailFile.AddRange(item.Value);
+                        }
+
+                        var failOFSList = string.Join(",<br>", ofsFailFile.Distinct());
+                        var successOFSList = string.Join(",<br>", ofsSccessFile.Distinct());
+
+                        _sbBody.AppendLine("<br>");
+                        _sbBody.AppendLine("<p><strong>Outbound File Processing Summary</strong>:</p>");
+                        _sbBody.AppendLine("<table>");
+                        _sbBody.AppendLine("<tr><th>Entity</th><th>No of Files Delete</th><th>No of Files Problem Delete</th><th>Successfully Deleted  FileName</th><th>Failed In deleting FileName</th></tr>");
+                        _sbBody.AppendFormat("<tr><td>{0}<td>", ofsEntitys);
+                        _sbBody.AppendFormat("<td>{0}</td>", ofsSccessFile.Distinct().Count().ToString());
+                        _sbBody.AppendFormat("<td>{0}</td>", ofsFailFile.Count.ToString());
+                        _sbBody.AppendFormat("<td>{0}", failOFSList);
+                        _sbBody.AppendFormat("<td>{0}", successOFSList);
+                        _sbBody.AppendLine("</tr>");
+                        _sbBody.AppendLine("</table>");
+                        _sbBody.AppendLine("<br>");
+
+                        //Outbound 
+                        var opsEntitys = string.Join(",<br>", OPSSuccess.Select(x => x.Key.EntityID).Distinct());
+
+                        List<string> opsSccessFile = new List<string>();
+                        foreach (var item in OPSSuccess)
+                        {
+                            opsSccessFile.AddRange(item.Value);
+
+                        }
+
+                        List<string> opsFailFile = new List<string>();
+                        foreach (var item in OPSFail)
+                        {
+                            opsFailFile.AddRange(item.Value);
+
+                        }
+
+                        var failOPSList = string.Join(",<br>", opsFailFile.Distinct());
+                        var successOPSList = string.Join(",<br>", opsSccessFile.Distinct());
+                        _sbBody.AppendLine("<br>");
+                        _sbBody.AppendLine("<p><strong>Outbound File Processing Summary</strong>:</p>");
+                        _sbBody.AppendLine("<table>");
+                        _sbBody.AppendLine("<tr><th>Entity</th><th>No of Files Delete</th><th>No of Files Problem Delete</th><th>Successfully Deleted  FileName</th><th>Failed In deleting FileName</th></tr>");
+                        _sbBody.AppendFormat("<tr><td>{0}<td>", opsEntitys);
+                        _sbBody.AppendFormat("<td>{0}</td>", opsSccessFile.Distinct().Count().ToString());
+                        _sbBody.AppendFormat("<td>{0}</td>", opsFailFile.Count.ToString());
+                        _sbBody.AppendFormat("<td>{0}", failOPSList);
+                        _sbBody.AppendFormat("<td>{0}", successOPSList);
+                        _sbBody.AppendLine("</tr>");
+                        _sbBody.AppendLine("</table>");
+                        _sbBody.AppendLine("<br>");
+
+                        //Total Count
+                        _sbBody.AppendLine(_emailFooter);
+                        //     _message.Subject = $"Delete Processing summary Date:{DateTime.Now:MM/dd/yyyy} , Inbound Success:{IPSSuccess.Count} ,Inbound Fail:{IPSFail.Count} , Outbound File Success:{OFSSuccess.Count},Outbound File Fail:{OFSFail.Count}, Outbound Success:{OPSSuccess.Count}, Outbound Fail:{OPSFail.Count}";
+
+                        //Set message field values                   
+                        _message.BodyText = _sbBody.ToString();
+                        _message.EmailType = "SummaryEmail";
+                        //_message.EmailSubType = summaryType;
+                        _message.CreatedBy = "Gateway Monitor";
+                        //Save message
+                        dbContext.SEEmailMessages.Add(_message);
+                        dbContext.SaveChanges();
+                        _message.To = string.Format("{0}", Globals.MailToInfo);
+                    }
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Globals.DBLogger.Error(string.Format("DeleteProcessingSummaryMessage: Error while Sendmail {0}", ex.Message), ex);
+                return false;
+            }
+        }
