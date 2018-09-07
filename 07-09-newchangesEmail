@@ -1,0 +1,24 @@
+Hi Ashok,
+
+ I have spent total-44 hours on ABS Data Purge functionality
+
+Learning -
+	Following challenges faced- 
+	1)Understand the database structure.
+	2)Search multiple file of same name in the same destination and delete it in that collection of  single file but after searching get numbers of files of same name, here difficult maintain(log of remove file) the original collection and  and other file which searched. 
+
+	Following went right things work with this functionality -
+	1) Already the Database structure is created, very clear understand requirement of functionality.
+	2) I have experience to work on windows file operation, It was help me in implementation.
+ 
+    Following went wrong things work with this functionality -
+    1) I have done the code, but after successfully created code, In testing I am not able to check the email, which is generated as output of this task.
+    2) Manage the multiple file of same collection(after searching local folder ), consume extra time.
+	3) Initially create the collection of all details of successfully, unsuccessfully remove file with all information, but there is possibility many file with same name and different extension in that folder,but that case other information is same. It create repetitive data. (Correct it, now use sub-collection for maintain the unit data)
+	3) Unable to test deleted file on local environment, because the in the local environment the such directory and file structure not available matching with database data, 
+ 
+ Thanks,
+ Swati Shinde
+ Sr. Program Analyst - IT - WNS Global Services (P) Ltd | www.wns.com
+ Weikfield IT-CITI INFOPARK Survey Nos. 30/3, 31/1, and 2A, Nagar RoadVadgaonsheri, Pune, Maharashtra, 
+ IP:  | Direct:  | Mobile: +919096041453 | Email: Swati.Shinde@wns.com
