@@ -1,0 +1,12 @@
+Declare @DateOfAcc date
+Set @DateOfAcc=(Select top 1 convert(date,DateOfAcquisition) from WNS_ASSET_DETAILS_V where PONumber='3170001052' )
+
+Select @DateOfAcc,t1.TAGNumber
+from TD_TAG t1
+inner join TD_TAGMaster t2 on t1.TAGMasterId=t2.TAGMasterId
+where PONumber='3170001052'and GRNNumber='5170004154'
+Except
+Select @DateOfAcc,t1.TAGNumber
+from TD_InventoryCommonDetail t1
+inner join TD_Inventory t2 on t1.InventoryId=t2.InventoryId
+where PONumber='3170001052'and GRNNumber='5170004154'
