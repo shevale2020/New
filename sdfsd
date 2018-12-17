@@ -1,0 +1,1515 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Data.SqlClient;
+using Wns.Sdg.Product.FAR.DataAccessLayer.Interface;
+using Wns.Sdg.Product.FAR.Entity;
+using System.Configuration;
+using System.Data;
+using System.Data.OleDb;
+using System.IO;
+using System.Web;
+
+
+namespace Wns.Sdg.Product.FAR.DataAccessLayer
+{
+    public class InventoryDal : IInventoryDal
+    {
+        /// <summary>
+        ///  Get PO Date,GRN Date and Vendor Name
+        /// </summary>
+        /// <param name="prefixText"></param>
+        /// <returns></returns>
+        public List<InventoryEntity> GetPOGRNNumber(InventoryEntity prefixText)
+        {
+            List<InventoryEntity> InventoryResult = new List<InventoryEntity>();
+            string SpName = "Proc_GetInventorydetailPOGRN";
+
+            SqlParameter[] SqlParams = new SqlParameter[8];
+            SqlParams[0] = new SqlParameter("@ExecId", SqlDbType.BigInt);
+            SqlParams[0].Value = 6;
+            SqlParams[1] = new SqlParameter("@PONumber", SqlDbType.NVarChar);
+            SqlParams[1].Value = Convert.ToString(prefixText.PoNumber);
+            SqlParams[2] = new SqlParameter("@GRNNumber", SqlDbType.NVarChar);
+            SqlParams[2].Value = Convert.ToString(prefixText.GRNNumber);
+            SqlParams[3] = new SqlParameter("@parameterdescr", SqlDbType.NVarChar);
+            SqlParams[3].Value = 1;
+            SqlParams[4] = new SqlParameter("@InventoryType", SqlDbType.NVarChar);
+            SqlParams[4].Value = 0;
+            SqlParams[5] = new SqlParameter("@EmpID", SqlDbType.NVarChar);
+            SqlParams[5].Value = Convert.ToString(prefixText.Emplid);
+            SqlParams[6] = new SqlParameter("@UserID", SqlDbType.NVarChar);
+            SqlParams[6].Value = Convert.ToString(prefixText.UserID);
+            SqlParams[7] = new SqlParameter("@RoleID", SqlDbType.NVarChar);
+            SqlParams[7].Value = Convert.ToString(prefixText.RoleID);
+
+            DataTable dt = SqlHelper.ExecuteDataset(Utility.ConnectionString, SpName, SqlParams).Tables[0];
+
+            for (int i = 0; i < dt.Rows.Count; i++)
+            {
+                InventoryEntity Inventory = new InventoryEntity();
+                Inventory.PoNumber = Convert.ToString(dt.Rows[i]["PO"]);
+                if (dt.Rows[i]["Po_Date"] != DBNull.Value)
+                    Inventory.PoDate = Convert.ToDateTime(dt.Rows[i]["Po_Date"]);
+                else
+                    Inventory.PoDate = DateTime.MinValue;
+                Inventory.ManufacturerName = Convert.ToString(dt.Rows[i]["VendorName"]);
+                Inventory.GRNNumber = Convert.ToString(dt.Rows[i]["GRNNumber"]);
+                if (dt.Rows[i]["GRNDate"] != DBNull.Value)
+                    Inventory.GRNDate = Convert.ToDateTime(dt.Rows[i]["GRNDate"]);
+                else
+                    Inventory.GRNDate = DateTime.MinValue;
+                Inventory.formatedGRNDate = Convert.ToString(dt.Rows[i]["formatedGRNDate"]);
+                Inventory.formatedPODate = Convert.ToString(dt.Rows[i]["formatedPODate"]);
+                InventoryResult.Add(Inventory);
+            }
+
+            return InventoryResult;
+        }
+
+
+        public List<string> GetPONumber(string prefixText)
+        {
+            List<string> InventoryResult = new List<string>();
+            string SpName = "Proc_GetInventorydetailPOGRN";
+
+            SqlParameter[] SqlParams = new SqlParameter[8];
+            SqlParams[0] = new SqlParameter("@ExecId", SqlDbType.BigInt);
+            SqlParams[0].Value = 1;
+            SqlParams[1] = new SqlParameter("@PONumber", SqlDbType.NVarChar);
+            SqlParams[1].Value = prefixText;
+            SqlParams[2] = new SqlParameter("@GRNNumber", SqlDbType.NVarChar);
+            SqlParams[2].Value = 0;
+            SqlParams[3] = new SqlParameter("@ParameterId", SqlDbType.NVarChar);
+            SqlParams[3].Value = 1;
+            SqlParams[4] = new SqlParameter("@InventoryType", SqlDbType.NVarChar);
+            SqlParams[4].Value = 0;
+            SqlParams[5] = new SqlParameter("@EmpID", SqlDbType.NVarChar);
+            SqlParams[5].Value = "";//Convert.ToString(prefixText.Emplid);
+            SqlParams[6] = new SqlParameter("@UserID", SqlDbType.NVarChar);
+            SqlParams[6].Value = "";
+            SqlParams[7] = new SqlParameter("@RoleID", SqlDbType.NVarChar);
+            SqlParams[7].Value = "";
+            SqlDataReader rdr = SqlHelper.ExecuteReader(Utility.ConnectionString, SpName, SqlParams);
+
+            while (rdr.Read())
+            {
+                InventoryResult.Add(rdr["PO"].ToString());
+            }
+            if (InventoryResult.Count == 0)
+            {
+
+            }
+            return InventoryResult;
+        }
+
+        /// <summary>
+        /// Get GRN Number
+        /// </summary>
+        /// <param name="prefixText"></param>
+        /// <returns></returns>
+        public List<InventoryEntity> GetGRNNumber(InventoryEntity prefixText)
+        {
+            List<InventoryEntity> InventoryResult = new List<InventoryEntity>();
+            string SpName = "Proc_GetInventorydetailPOGRN";
+
+            SqlParameter[] SqlParams = new SqlParameter[8];
+            SqlParams[0] = new SqlParameter("@ExecId", SqlDbType.BigInt);
+            SqlParams[0].Value = 2;
+            SqlParams[1] = new SqlParameter("@PONumber", SqlDbType.NVarChar);
+            SqlParams[1].Value = prefixText.PoNumber;
+            SqlParams[2] = new SqlParameter("@GRNNumber", SqlDbType.NVarChar);
+            SqlParams[2].Value = 0;
+            SqlParams[3] = new SqlParameter("@ParameterId", SqlDbType.NVarChar);
+            SqlParams[3].Value = 1;
+            SqlParams[4] = new SqlParameter("@InventoryType", SqlDbType.NVarChar);
+            SqlParams[4].Value = 0;
+            SqlParams[5] = new SqlParameter("@EmpID", SqlDbType.NVarChar);
+            SqlParams[5].Value = Convert.ToString(prefixText.Emplid);
+            SqlParams[6] = new SqlParameter("@UserID", SqlDbType.NVarChar);
+            SqlParams[6].Value = Convert.ToString(prefixText.UserID);
+            SqlParams[7] = new SqlParameter("@RoleID", SqlDbType.NVarChar);
+            SqlParams[7].Value = Convert.ToString(prefixText.RoleID);
+            DataTable dt = SqlHelper.ExecuteDataset(Utility.ConnectionString, SpName, SqlParams).Tables[0];
+            for (int i = 0; i < dt.Rows.Count; i++)
+            {
+                InventoryEntity Inventory = new InventoryEntity();
+                Inventory.GRNNumber = Convert.ToString(dt.Rows[i]["GRNNumber"]);
+                InventoryResult.Add(Inventory);
+            }
+            return InventoryResult;
+        }
+
+        /// <summary>
+        /// Load grid for respective inventory type for Data Entry
+        /// </summary>
+        /// <param name="prefixText"></param>
+        /// <returns></returns>
+        public List<InventoryEntity> GetMainInventory(InventoryEntity prefixText)
+        {
+            List<InventoryEntity> InventoryResult = new List<InventoryEntity>();
+            InventoryEntity Inventory = new InventoryEntity();
+            string SpName = "Proc_GetInventorydetailPOGRN";
+
+            SqlParameter[] SqlParams = new SqlParameter[8];
+            SqlParams[0] = new SqlParameter("@ExecId", SqlDbType.BigInt);
+            SqlParams[0].Value = 4;
+            SqlParams[1] = new SqlParameter("@PONumber", SqlDbType.NVarChar);
+            SqlParams[1].Value = prefixText.PoNumber;
+            SqlParams[2] = new SqlParameter("@GRNNumber", SqlDbType.NVarChar);
+            SqlParams[2].Value = prefixText.GRNNumber;
+            SqlParams[3] = new SqlParameter("@parameterdescr", SqlDbType.NVarChar);
+            SqlParams[3].Value = "";
+            SqlParams[4] = new SqlParameter("@InventoryType", SqlDbType.NVarChar);
+            SqlParams[4].Value = "";
+            SqlParams[5] = new SqlParameter("@EmpID", SqlDbType.NVarChar);
+            SqlParams[5].Value = Convert.ToString(prefixText.Emplid);
+            SqlParams[6] = new SqlParameter("@UserID", SqlDbType.NVarChar);
+            SqlParams[6].Value = Convert.ToString(prefixText.UserID);
+            SqlParams[7] = new SqlParameter("@RoleID", SqlDbType.NVarChar);
+            SqlParams[7].Value = Convert.ToString(prefixText.RoleID);
+            //DataTable dt = SqlHelper.ExecuteDataset(Utility.ConnectionString, SpName, SqlParams).Tables[0];
+            DataSet ds = SqlHelper.ExecuteDataset(Utility.ConnectionString, SpName, SqlParams);
+
+            DataTable dtdesktop = null;
+            DataTable dtlaptop = null;
+            DataTable dtnetwork = null;
+            DataTable dtserver = null;
+            DataTable dttelecom = null;
+
+            //Start - Infra Inventory P2 Changes
+            DataTable dtinfra= null;
+            //End - Infra Inventory P2 Changes
+
+
+            dtdesktop = ds.Tables[0];
+            dtlaptop = ds.Tables[1];
+            dtnetwork = ds.Tables[2];
+            dtserver = ds.Tables[3];
+            dttelecom = ds.Tables[4];
+
+            //Start - Infra Inventory P2 Changes
+             dtinfra = ds.Tables[5]; ;
+            //End - Infra Inventory P2 Changes
+
+            Inventory.dtInventoryDesktopDetailEntity = dtdesktop.Copy();
+            Inventory.dtInventoryLaptopDetailEntity = dtlaptop.Copy();
+            Inventory.dtInventoryNetworkDetailEntity = dtnetwork.Copy();
+            Inventory.dtInventoryServerDetailEntity = dtserver.Copy();
+            Inventory.dtInventoryTelecomDetailEntity = dttelecom.Copy();
+
+            //Start - Infra Inventory P2 Changes
+            Inventory.dtInventoryInfraDetailEntity = dtinfra.Copy();
+            //End - Infra Inventory P2 Changes
+
+            InventoryResult.Add(Inventory);
+            return InventoryResult;
+        }
+
+
+        /// <summary>
+        ///  Add invnentory details manually
+        /// </summary>
+        /// <param name="objInventoryEntity"></param>
+        /// <returns></returns>
+        public InventoryEntity AddInventory(InventoryEntity objInventoryEntity)
+        {
+            InventoryEntity obj = new InventoryEntity();
+            string SpName = "Proc_AddInventory";
+
+            DataSet ds = null; DataSet dsL = null; DataSet dsN = null; DataSet dsS = null; DataSet dsT = null; DataSet dsMsg = null;
+
+            //Start - Infra Inventory P2 Changes
+            DataSet dsI = null;
+            //End - Infra Inventory P2 Changes
+
+            if (objInventoryEntity.lstInventoryDesktopDetailEntity != null)
+            {
+                ds = ExtensionMethods.ToDataSet(objInventoryEntity.lstInventoryDesktopDetailEntity);
+                ds.Tables[0].TableName = "InventoryDesktopDetailType";
+            }
+
+            if (objInventoryEntity.lstInventoryLaptopDetailEntity != null)
+            {
+                dsL = ExtensionMethods.ToDataSet(objInventoryEntity.lstInventoryLaptopDetailEntity);
+                dsL.Tables[0].TableName = "InventoryLaptopDetailType";
+            }
+
+            if (objInventoryEntity.lstInventoryNetworkDetailEntity != null)
+            {
+                dsN = ExtensionMethods.ToDataSet(objInventoryEntity.lstInventoryNetworkDetailEntity);
+                dsN.Tables[0].TableName = "InventoryNetworkDetailType";
+            }
+
+            if (objInventoryEntity.lstInventoryServerDetailEntity != null)
+            {
+                dsS = ExtensionMethods.ToDataSet(objInventoryEntity.lstInventoryServerDetailEntity);
+                dsS.Tables[0].TableName = "InventoryServerDetailType";
+            }
+
+            if (objInventoryEntity.lstInventoryTelecomDetailEntity != null)
+            {
+                dsT = ExtensionMethods.ToDataSet(objInventoryEntity.lstInventoryTelecomDetailEntity);
+                dsT.Tables[0].TableName = "InventoryTelecomDetailType";
+            }
+
+            //Start - Infra Inventory P2 Changes
+            if (objInventoryEntity.lstInventoryInfraDetailEntity != null)
+            {
+                dsI = ExtensionMethods.ToDataSet(objInventoryEntity.lstInventoryInfraDetailEntity);
+                dsI.Tables[0].TableName = "InventoryInfraDetailType";
+            }
+            //End - Infra Inventory P2 Changes
+
+
+            SqlParameter[] SqlParams = new SqlParameter[9];
+            SqlParams[0] = new SqlParameter("@EmplId", SqlDbType.VarChar);
+            SqlParams[0].Value = Convert.ToString(objInventoryEntity.Emplid);//"3640000145";//);
+            SqlParams[1] = new SqlParameter("@UserId", SqlDbType.Int);
+            SqlParams[1].Value = Convert.ToInt32(objInventoryEntity.UserID);// "5640000462";//;
+            SqlParams[2] = new SqlParameter("@RoleID", SqlDbType.VarChar);
+            SqlParams[2].Value = Convert.ToString(objInventoryEntity.RoleID); //"O00007"; //           
+
+            if (ds != null)
+            {
+                if (ds.Tables["InventoryDesktopDetailType"] != null && ds.Tables[0].Rows.Count > 0)
+                {
+                    SqlParams[3] = new SqlParameter("@InventoryDesktopDetailType", ds.Tables["InventoryDesktopDetailType"]);
+                    SqlParams[3].SqlDbType = SqlDbType.Structured;
+                }
+            }
+            
+            if (dsL != null)
+            {
+                if (dsL.Tables["InventoryLaptopDetailType"] != null && dsL.Tables[0].Rows.Count > 0)
+                {
+                    SqlParams[4] = new SqlParameter("@InventoryLaptopDetailType", dsL.Tables["InventoryLaptopDetailType"]);
+                    SqlParams[4].SqlDbType = SqlDbType.Structured;
+                }
+            }
+           
+
+            if (dsN != null)
+            {
+                if (dsN.Tables["InventoryNetworkDetailType"] != null && dsN.Tables[0].Rows.Count > 0)
+                {
+                    SqlParams[5] = new SqlParameter("@InventoryNetworkDetailType", dsN.Tables["InventoryNetworkDetailType"]);
+                    SqlParams[5].SqlDbType = SqlDbType.Structured;
+                }
+            }
+            
+
+            if (dsS != null)
+            {
+                if (dsS.Tables["InventoryServerDetailType"] != null && dsS.Tables[0].Rows.Count > 0)
+                {
+                    SqlParams[6] = new SqlParameter("@InventoryServerDetailType", dsS.Tables["InventoryServerDetailType"]);
+                    SqlParams[6].SqlDbType = SqlDbType.Structured;
+
+                }
+            }
+            
+            if (dsT != null)
+            {
+                if (dsT.Tables["InventoryTelecomDetailType"] != null && dsT.Tables[0].Rows.Count > 0)
+                {
+                    SqlParams[7] = new SqlParameter("@InventoryTelecomDetailType", dsT.Tables["InventoryTelecomDetailType"]);
+                    SqlParams[7].SqlDbType = SqlDbType.Structured;
+                }
+            }
+
+            //Start - Infra Inventory P2 Changes
+            if (dsI != null)
+            {
+                if (dsI.Tables["InventoryInfraDetailType"] != null && dsI.Tables[0].Rows.Count > 0)
+                {
+                    SqlParams[8] = new SqlParameter("@InventoryInfraDetailType", dsI.Tables["InventoryInfraDetailType"]);
+                    SqlParams[8].SqlDbType = SqlDbType.Structured;
+                }
+            }
+            //End - Infra Inventory P2 Changes
+
+
+            if (ds.Tables["InventoryDesktopDetailType"].Rows.Count > 0 || dsL.Tables["InventoryLaptopDetailType"].Rows.Count > 0 ||
+                dsN.Tables["InventoryNetworkDetailType"].Rows.Count > 0 || dsS.Tables["InventoryServerDetailType"].Rows.Count > 0 ||
+                dsT.Tables["InventoryTelecomDetailType"].Rows.Count > 0
+              //Start - Infra Inventory P2 Changes
+              || dsI.Tables["InventoryInfraDetailType"].Rows.Count > 0
+              //End - Infra Inventory P2 Changes
+              )
+            {
+                dsMsg = SqlHelper.ExecuteDataset(Utility.ConnectionString, CommandType.StoredProcedure, SpName, SqlParams);
+                obj.Msg = dsMsg.Tables[0].Rows[0][0].ToString();
+            }
+            else
+            {
+                obj.Msg = "NODATAFORSAVE";
+            }
+
+            if (obj.Msg.ToUpper().Contains("SUCCESSFULLY"))
+            {
+
+                string PoNumber = "", GRNNumber = "";
+                string Emplid = Convert.ToString(objInventoryEntity.Emplid),
+                        RoleID = Convert.ToString(objInventoryEntity.RoleID),
+                        UserID = Convert.ToString(objInventoryEntity.UserID);
+
+                if (ds != null)
+                {
+                    if (ds.Tables["InventoryDesktopDetailType"] != null && ds.Tables["InventoryDesktopDetailType"].Rows.Count > 0)
+                    {
+                        PoNumber = ds.Tables["InventoryDesktopDetailType"].Rows[0]["PoNumber"].ToString();
+                        GRNNumber = ds.Tables["InventoryDesktopDetailType"].Rows[0]["GRNNumber"].ToString();
+                    }
+                }
+
+                 if (dsL != null)
+                {
+                    if (dsL.Tables["InventoryLaptopDetailType"] != null && dsL.Tables["InventoryLaptopDetailType"].Rows.Count > 0)
+                    {
+                        PoNumber = dsL.Tables["InventoryLaptopDetailType"].Rows[0]["PoNumber"].ToString();
+                        GRNNumber = dsL.Tables["InventoryLaptopDetailType"].Rows[0]["GRNNumber"].ToString();
+                    }
+                }
+
+                 if (dsN != null)
+                {
+                    if (dsN.Tables["InventoryNetworkDetailType"] != null && dsN.Tables["InventoryNetworkDetailType"].Rows.Count > 0)
+                    {
+                        PoNumber = dsN.Tables["InventoryNetworkDetailType"].Rows[0]["PoNumber"].ToString();
+                        GRNNumber = dsN.Tables["InventoryNetworkDetailType"].Rows[0]["GRNNumber"].ToString();
+                    }
+                }
+
+                 if (dsS != null)
+                {
+                    if (dsS.Tables["InventoryServerDetailType"] != null && dsS.Tables["InventoryServerDetailType"].Rows.Count > 0)
+                    {
+                        PoNumber = dsS.Tables["InventoryServerDetailType"].Rows[0]["PoNumber"].ToString();
+                        GRNNumber = dsS.Tables["InventoryServerDetailType"].Rows[0]["GRNNumber"].ToString();
+                    }
+                }
+
+                 if (dsT != null)
+                {
+                    if (dsT.Tables["InventoryTelecomDetailType"] != null && dsT.Tables["InventoryTelecomDetailType"].Rows.Count > 0)
+                    {
+                        PoNumber = dsT.Tables["InventoryTelecomDetailType"].Rows[0]["PoNumber"].ToString();
+                        GRNNumber = dsT.Tables["InventoryTelecomDetailType"].Rows[0]["GRNNumber"].ToString();
+                    }
+                }
+
+                //Start - Infra Inventory P2 Changes
+                if (dsI != null)
+                {
+                    if (dsI.Tables["InventoryInfraDetailType"] != null && dsI.Tables["InventoryInfraDetailType"].Rows.Count > 0)
+                    {
+                        PoNumber = dsI.Tables["InventoryInfraDetailType"].Rows[0]["PoNumber"].ToString();
+                        GRNNumber = dsI.Tables["InventoryInfraDetailType"].Rows[0]["GRNNumber"].ToString();
+                    }
+                }
+                //End - Infra Inventory P2 Changes
+
+
+                AddInventoryEmail(Emplid, RoleID, UserID, PoNumber, GRNNumber);
+
+                AddManualInventoryEmailToInternalTeam(Emplid, RoleID, UserID, ds.Tables["InventoryDesktopDetailType"], dsL.Tables["InventoryLaptopDetailType"], dsN.Tables["InventoryNetworkDetailType"], dsS.Tables["InventoryServerDetailType"], dsT.Tables["InventoryTelecomDetailType"], dsI.Tables["InventoryInfraDetailType"]);
+            }
+
+            return obj;
+        }
+
+        public InventoryEntity AddInventory(InventoryEntity objInventoryEntity, DataSet objDSInventory)
+        {
+            InventoryEntity obj = new InventoryEntity();
+            string SpName = "Proc_AddInventory";
+
+            SqlParameter[] SqlParams = new SqlParameter[8];
+            SqlParams[0] = new SqlParameter("@EmplId", SqlDbType.VarChar);
+            SqlParams[0].Value = Convert.ToString(objInventoryEntity.Emplid);
+            SqlParams[1] = new SqlParameter("@UserId", SqlDbType.Int);
+            SqlParams[1].Value = Convert.ToInt32(objInventoryEntity.UserID);
+            SqlParams[2] = new SqlParameter("@RoleID", SqlDbType.VarChar);
+            SqlParams[2].Value = Convert.ToString(objInventoryEntity.RoleID);
+
+            if (objDSInventory.Tables["InventoryDesktopDetailType"].Rows.Count > 0)
+            {
+                SqlParams[3] = new SqlParameter("@InventoryDesktopDetailType", objDSInventory.Tables["InventoryDesktopDetailType"]);
+                SqlParams[3].SqlDbType = SqlDbType.Structured;
+            }
+
+            if (objDSInventory.Tables["InventoryLaptopDetailType"].Rows.Count > 0)
+            {
+                SqlParams[4] = new SqlParameter("@InventoryLaptopDetailType", objDSInventory.Tables["InventoryLaptopDetailType"]);
+                SqlParams[4].SqlDbType = SqlDbType.Structured;
+            }
+
+            if (objDSInventory.Tables["InventoryNetworkDetailType"].Rows.Count > 0)
+            {
+                SqlParams[5] = new SqlParameter("@InventoryNetworkDetailType", objDSInventory.Tables["InventoryNetworkDetailType"]);
+                SqlParams[5].SqlDbType = SqlDbType.Structured;
+            }
+
+            if (objDSInventory.Tables["InventoryServerDetailType"].Rows.Count > 0)
+            {
+                SqlParams[6] = new SqlParameter("@InventoryServerDetailType", objDSInventory.Tables["InventoryServerDetailType"]);
+                SqlParams[6].SqlDbType = SqlDbType.Structured;
+            }
+
+            if (objDSInventory.Tables["InventoryTelecomDetailType"].Rows.Count > 0)
+            {
+                SqlParams[7] = new SqlParameter("@InventoryTelecomDetailType", objDSInventory.Tables["InventoryTelecomDetailType"]);
+                SqlParams[7].SqlDbType = SqlDbType.Structured;
+            }
+
+            DataSet ds = SqlHelper.ExecuteDataset(Utility.ConnectionString, CommandType.StoredProcedure, SpName, SqlParams);
+            obj.Msg = ds.Tables[0].Rows[0][ds.Tables[0].Columns.Count - 1].ToString();
+            return obj;
+        }
+
+
+
+        //public InventoryEntity ViewInventory(InventoryEntity objInventoryEntity)
+        //{
+        //    InventoryEntity obj = new InventoryEntity();
+        //    string SpName = "Proc_ViewInventoryDetails";
+
+        //    SqlParameter[] SqlParams = new SqlParameter[6];
+        //    SqlParams[0] = new SqlParameter("@PONumber", SqlDbType.NVarChar);
+        //    SqlParams[0].Value = objInventoryEntity.PoNumber;
+        //    SqlParams[1] = new SqlParameter("@INV_TYPE", SqlDbType.BigInt);
+        //    SqlParams[1].Value = objInventoryEntity.InvType;
+        //    SqlParams[2] = new SqlParameter("@SerialNumber", SqlDbType.NVarChar);
+        //    SqlParams[2].Value = 0;
+        //    SqlParams[3] = new SqlParameter("@TAGNumber", SqlDbType.NVarChar);
+        //    SqlParams[3].Value = 0;
+        //    SqlParams[4] = new SqlParameter("@Location", SqlDbType.NVarChar);
+        //    SqlParams[4].Value = 0;
+        //    SqlParams[5] = new SqlParameter("@AssetType", SqlDbType.NVarChar);
+        //    SqlParams[5].Value = 0;
+        //    DataTable dt = SqlHelper.ExecuteDataset(Utility.ConnectionString, SpName, SqlParams).Tables[0];
+
+
+        //    #region dekstop
+        //    List<InventoryDesktopDetailEntity> objlst = new List<InventoryDesktopDetailEntity>();
+
+        //    for (int i = 0; i < dt.Rows.Count; i++)
+        //    {
+
+        //        InventoryDesktopDetailEntity objInventoryDesktopDetailEntity = new InventoryDesktopDetailEntity();
+
+
+        //        objInventoryDesktopDetailEntity.SerialNumber = Convert.ToString(dt.Rows[i]["SerialNumber"]);
+        //        objInventoryDesktopDetailEntity.Hostname = Convert.ToString(dt.Rows[i]["Hostname"]);
+        //        objInventoryDesktopDetailEntity.HardDisk = Convert.ToString(dt.Rows[i]["HardDisk"]);
+
+        //        objlst.Add(objInventoryDesktopDetailEntity);
+
+        //}
+
+        public List<InventoryEntity> Getdesktopdetail(InventoryEntity desktopdetail)
+        {
+            List<InventoryEntity> ParameterResult = new List<InventoryEntity>();
+            string SpName = "Proc_ViewInventoryDetails";
+
+            //SqlParameter[] SqlParams = new SqlParameter[6];
+            //SqlParams[0] = new SqlParameter("@PONumber", SqlDbType.NVarChar);
+            //SqlParams[0].Value = desktopdetail.PONUMBER;
+            //SqlParams[1] = new SqlParameter("@INV_TYPE", SqlDbType.BigInt);
+            //SqlParams[1].Value = "Desktop";
+            //SqlParams[2] = new SqlParameter("@SerialNumber", SqlDbType.NVarChar);
+            //SqlParams[2].Value = 0;
+            //SqlParams[3] = new SqlParameter("@TAGNumber", SqlDbType.NVarChar);
+            //SqlParams[3].Value = 0;
+            //SqlParams[4] = new SqlParameter("@Location", SqlDbType.NVarChar);
+            //SqlParams[4].Value = 0;
+            //SqlParams[5] = new SqlParameter("@AssetType", SqlDbType.NVarChar);
+            //SqlParams[5].Value = 0;
+            //DataTable dt = SqlHelper.ExecuteDataset(Utility.ConnectionString, SpName, SqlParams).Tables[0];
+            //for (int i = 0; i < dt.Rows.Count; i++)
+            //{
+            //    InventoryEntity ParameterValue = new InventoryEntity();
+            //    ParameterValue.MajorCategory = Convert.ToString(dt.Rows[i]["MajorCategory"]);
+            //    ParameterValue.MinorCategory            = Convert.ToString(dt.Rows[i]["MinorCategory"]);
+            //    ParameterValue.MinorSubCategory         = Convert.ToString(dt.Rows[i]["MinorSubCategory"]);
+            //    ParameterValue.ItemCode                 = Convert.ToString(dt.Rows[i]["ItemCode"]);
+            //    ParameterValue.Location                 = Convert.ToString(dt.Rows[i]["Location"]);
+            //    ParameterValue.AssetType                = Convert.ToString(dt.Rows[i]["AssetType"]);
+            //    ParameterValue.AllocationType           = Convert.ToString(dt.Rows[i]["AllocationType"]);
+            //    ParameterValue.AssetId                  = Convert.ToString(dt.Rows[i]["AssetId"]);
+            //    ParameterValue.SerialNumber             = Convert.ToString(dt.Rows[i]["SerialNumber"]);
+            //    ParameterValue.Hostname                 = Convert.ToString(dt.Rows[i]["Hostname"]);
+            //    ParameterValue.InventoryDesktopDetailEntity             = Convert.ToString(dt.Rows[i]["DUALHOSTNAME"]);
+            //    ParameterValue.DESKID                   = Convert.ToString(dt.Rows[i]["DESKID"]);
+            //    ParameterValue.IPADDRESS                = Convert.ToString(dt.Rows[i]["IPADDRESS"]);
+            //    ParameterValue.MAKE                     = Convert.ToString(dt.Rows[i]["MAKE"]);
+            //    ParameterValue.MODELSIZE                = Convert.ToString(dt.Rows[i]["MODELSIZE"]);
+            //    ParameterValue.PROCESSOR                = Convert.ToString(dt.Rows[i]["PROCESSOR"]);
+            //    ParameterValue.RAM                      = Convert.ToString(dt.Rows[i]["RAM"]);
+            //    ParameterValue.HARDDISK                 = Convert.ToString(dt.Rows[i]["HARDDISK"]);
+            //    ParameterValue.DOMAINNAME               = Convert.ToString(dt.Rows[i]["DOMAINNAME"]);
+            //    ParameterValue.SHAREDDEDICATED          = Convert.ToString(dt.Rows[i]["SHAREDDEDICATED"]);
+            //    ParameterValue.PROJECT                  = Convert.ToString(dt.Rows[i]["PROJECT"]);
+            //    ParameterValue.ProjectLocation          = Convert.ToString(dt.Rows[i]["ProjectLocation"]);
+            //    ParameterValue.WING                     = Convert.ToString(dt.Rows[i]["WING"]);
+            //    ParameterValue.InstalledOperatingSystem = Convert.ToString(dt.Rows[i]["InstalledOperatingSystem"]);
+            //    ParameterValue.PURCHASEDOS              = Convert.ToString(dt.Rows[i]["PURCHASEDOS"]);
+            //    ParameterValue.MSOFFICE                 = Convert.ToString(dt.Rows[i]["MSOFFICE"]);
+            //    ParameterValue.OCSCLIENT                = Convert.ToString(dt.Rows[i]["OCSCLIENT"]);
+            //    ParameterValue.ACROBATREADER            = Convert.ToString(dt.Rows[i]["ACROBATREADER"]);
+            //    ParameterValue.WINZIP                   = Convert.ToString(dt.Rows[i]["WINZIP"]);
+            //    ParameterValue.ANTIVIRUS                = Convert.ToString(dt.Rows[i]["ANTIVIRUS"]);
+            //    ParameterValue.OTHERSOFTWARE            = Convert.ToString(dt.Rows[i]["OTHERSOFTWARE"]);
+            //    ParameterValue.PONUMBER                 = Convert.ToString(dt.Rows[i]["PONUMBER"]);
+            //    ParameterValue.WARRANTYSTART            = Convert.ToString(dt.Rows[i]["WARRANTYSTART"]);
+            //    ParameterValue.WARRANTYEND              = Convert.ToString(dt.Rows[i]["WARRANTYEND"]);
+            //    ParameterValue.AGESPEND                 = Convert.ToString(dt.Rows[i]["AGESPEND"]);
+            //    ParameterValue.PHYSICALVERIFICATION     = Convert.ToString(dt.Rows[i]["PHYSICALVERIFICATION"]);
+            //    ParameterValue.STOCKSTATUS = Convert.ToString(dt.Rows[i]["STOCKSTATUS"]);
+            //    ParameterValue.BOND = Convert.ToString(dt.Rows[i]["BOND"]);
+            //    ParameterResult.Add(ParameterValue);
+            //}
+            return ParameterResult;
+        }
+
+
+        public List<InventoryEntity> Getlaptopdetail(InventoryEntity laptopdetail)
+        {
+            List<InventoryEntity> ParameterResult = new List<InventoryEntity>();
+            string SpName = "Proc_ViewInventoryDetails";
+
+            //SqlParameter[] SqlParams = new SqlParameter[6];
+            //SqlParams[0] = new SqlParameter("@PONumber", SqlDbType.NVarChar);
+            //SqlParams[0].Value = laptopdetail.PONumber;
+            //SqlParams[1] = new SqlParameter("@INV_TYPE", SqlDbType.BigInt);
+            //SqlParams[1].Value = "Laptop";
+            //SqlParams[2] = new SqlParameter("@SerialNumber", SqlDbType.NVarChar);
+            //SqlParams[2].Value = 0;
+            //SqlParams[3] = new SqlParameter("@TAGNumber", SqlDbType.NVarChar);
+            //SqlParams[3].Value = 0;
+            //SqlParams[4] = new SqlParameter("@Location", SqlDbType.NVarChar);
+            //SqlParams[4].Value = 0;
+            //SqlParams[5] = new SqlParameter("@AssetType", SqlDbType.NVarChar);
+            //SqlParams[5].Value = 0;
+            //DataTable dt = SqlHelper.ExecuteDataset(Utility.ConnectionString, SpName, SqlParams).Tables[0];
+            //for (int i = 0; i < dt.Rows.Count; i++)
+            //{
+            //    InventoryEntity ParameterValue = new InventoryEntity();
+            //    ParameterValue.PONumber = Convert.ToString(dt.Rows[i]["PONumber"]);
+            //    ParameterValue.EMPLOYEEID = Convert.ToString(dt.Rows[i]["EMPLOYEEID"]);
+            //    ParameterValue.EMPLOYEENAME = Convert.ToString(dt.Rows[i]["EMPLOYEENAME"]);
+            //    ParameterValue.MODEL = Convert.ToString(dt.Rows[i]["MODEL"]);
+            //    ParameterValue.SERIALNumber = Convert.ToString(dt.Rows[i]["SERIALNumber"]);
+            //    ParameterValue.BADGEID = Convert.ToString(dt.Rows[i]["BADGEID"]);
+            //    ParameterValue.LOCATION = Convert.ToString(dt.Rows[i]["LOCATION"]);
+            //    ParameterValue.ISSUEDATE = Convert.ToString(dt.Rows[i]["ISSUEDATE"]);
+            //    ParameterValue.EXPECTEDRETURNDATE = Convert.ToString(dt.Rows[i]["EXPECTEDRETURNDATE"]);
+            //    ParameterValue.ISRETURNED = Convert.ToString(dt.Rows[i]["ISRETURNED"]);
+            //    ParameterResult.Add(ParameterValue);
+            //}
+            return ParameterResult;
+        }
+
+        /// <summary>
+        /// Fetch PO Number
+        /// </summary>
+        /// <param name="objInventory"></param>
+        /// <returns></returns>
+        public List<GetRandomStringsResult> FetchPONumber(InventoryEntity objInventory)
+        {
+            List<GetRandomStringsResult> POResult = new List<GetRandomStringsResult>();
+            string SpName = "Proc_GetInventorydetailPOGRN";
+            SqlParameter[] SqlParams = null;
+            SqlParams = new SqlParameter[8];
+
+            SqlParams[0] = new SqlParameter("@ExecId", SqlDbType.BigInt);
+            SqlParams[0].Value = 1;
+            SqlParams[1] = new SqlParameter("@PONumber", SqlDbType.NVarChar);
+            SqlParams[1].Value = objInventory.PrefixText;
+            SqlParams[2] = new SqlParameter("@GRNNumber", SqlDbType.NVarChar);
+            SqlParams[2].Value = 0;
+            SqlParams[3] = new SqlParameter("@ParameterId", SqlDbType.NVarChar);
+            SqlParams[3].Value = 1;
+            SqlParams[4] = new SqlParameter("@InventoryType", SqlDbType.NVarChar);
+            SqlParams[4].Value = 0;
+            SqlParams[5] = new SqlParameter("@EmpID", SqlDbType.NVarChar);
+            SqlParams[5].Value = Convert.ToString(objInventory.Emplid);
+            SqlParams[6] = new SqlParameter("@UserID", SqlDbType.NVarChar);
+            SqlParams[6].Value = Convert.ToString(objInventory.UserID);
+            SqlParams[7] = new SqlParameter("@RoleID", SqlDbType.NVarChar);
+            SqlParams[7].Value = Convert.ToString(objInventory.RoleID);
+            SqlDataReader rdr = SqlHelper.ExecuteReader(Utility.ConnectionString, SpName, SqlParams);
+
+
+
+            while (rdr.Read())
+            {
+                InventoryEntity objInv = new InventoryEntity();
+                POResult.Add(new GetRandomStringsResult(rdr["PO"].ToString(), rdr["PO"].ToString()));
+            }
+            if (POResult.Count == 0)
+            {
+                POResult.Add(new GetRandomStringsResult("Please enter valid PO Number", ""));
+            }
+            return POResult;
+        }
+
+        #region Production Upload Inventory
+         
+        /// <summary>
+        /// Add Bulk Inventory details
+        /// </summary>
+        /// <param name="objInventoryEntity"></param>
+        /// <param name="objDSInventory"></param>
+        /// <returns></returns>
+        public InventoryEntity AddBulkInventory(InventoryEntity objInventoryEntity, DataSet objDSInventory)
+        {
+            InventoryEntity obj = new InventoryEntity();
+            string SpName = "Proc_AddBulkInventory";
+
+            SqlParameter[] SqlParams = new SqlParameter[9];
+            SqlParams[0] = new SqlParameter("@EmplId", SqlDbType.VarChar);
+            SqlParams[0].Value = Convert.ToString(objInventoryEntity.Emplid);
+            SqlParams[1] = new SqlParameter("@UserId", SqlDbType.Int);
+            SqlParams[1].Value = Convert.ToInt32(objInventoryEntity.UserID);
+            SqlParams[2] = new SqlParameter("@RoleID", SqlDbType.VarChar);
+            SqlParams[2].Value = Convert.ToString(objInventoryEntity.RoleID);
+
+            if (objDSInventory.Tables["InventoryDesktopDetailType"].Rows.Count > 0)
+            {
+                SqlParams[3] = new SqlParameter("@InventoryDesktopDetailType", objDSInventory.Tables["InventoryDesktopDetailType"]);
+                SqlParams[3].SqlDbType = SqlDbType.Structured;
+            }
+
+            if (objDSInventory.Tables["InventoryLaptopDetailType"].Rows.Count > 0)
+            {
+                SqlParams[4] = new SqlParameter("@InventoryLaptopDetailType", objDSInventory.Tables["InventoryLaptopDetailType"]);
+                SqlParams[4].SqlDbType = SqlDbType.Structured;
+            }
+
+            if (objDSInventory.Tables["InventoryNetworkDetailType"].Rows.Count > 0)
+            {
+                SqlParams[5] = new SqlParameter("@InventoryNetworkDetailType", objDSInventory.Tables["InventoryNetworkDetailType"]);
+                SqlParams[5].SqlDbType = SqlDbType.Structured;
+            }
+
+            if (objDSInventory.Tables["InventoryServerDetailType"].Rows.Count > 0)
+            {
+                SqlParams[6] = new SqlParameter("@InventoryServerDetailType", objDSInventory.Tables["InventoryServerDetailType"]);
+                SqlParams[6].SqlDbType = SqlDbType.Structured;
+            }
+
+            if (objDSInventory.Tables["InventoryTelecomDetailType"].Rows.Count > 0)
+            {
+                SqlParams[7] = new SqlParameter("@InventoryTelecomDetailType", objDSInventory.Tables["InventoryTelecomDetailType"]);
+                SqlParams[7].SqlDbType = SqlDbType.Structured;
+            }
+
+            //Start - Infra Inventory P2 Changes
+            if (objDSInventory.Tables["InventoryInfraDetailType"].Rows.Count > 0)
+            {
+                SqlParams[8] = new SqlParameter("@InventoryInfraDetailType", objDSInventory.Tables["InventoryInfraDetailType"]);
+                SqlParams[8].SqlDbType = SqlDbType.Structured;
+            }
+            //End - Infra Inventory P2 Changes
+
+
+            DataSet ds = SqlHelper.ExecuteDataset(Utility.ConnectionString, CommandType.StoredProcedure, SpName, SqlParams);
+            obj.Msg = ds.Tables[0].Rows[0][ds.Tables[0].Columns.Count - 1].ToString();
+
+            //START - Mail fired when Inventory Upload
+            string PoNumber = "", GRNNumber = "";
+            string Emplid = Convert.ToString(objInventoryEntity.Emplid),
+                   RoleID = Convert.ToString(objInventoryEntity.RoleID),
+                   UserID = Convert.ToString(objInventoryEntity.UserID);
+
+            if (obj.Msg.ToUpper().Contains("SUCCESSFULLY"))
+            {
+                obj.StatusCode = "200";
+                if (objDSInventory != null)
+                {
+                    //START - Desktop Inventory Mail.
+                    #region mail
+                    if (objDSInventory.Tables["InventoryDesktopDetailType"] != null && objDSInventory.Tables["InventoryDesktopDetailType"].Rows.Count > 0)
+                    {
+
+                        //DataTable dtdsk = objDSInventory.Tables["InventoryDesktopDetailType"].AsEnumerable()
+                        //                .GroupBy(r => new { PoNumber = r["PoNumber"], GRNNumber = r["GRNNumber"] })
+                        //                .SelectMany(g => g.OrderBy(r => r["PoNumber"]))
+                        //                .Distinct()
+                        //                .CopyToDataTable();
+
+
+                        var dsk = from rows in objDSInventory.Tables["InventoryDesktopDetailType"].AsEnumerable()
+                                  orderby rows["PoNumber"] descending
+                                  group rows by new { PoNumber = rows["PoNumber"], GRNNumber = rows["GRNNumber"] } into grp
+                                  select grp.First();
+
+                        DataTable dtdsk = dsk.CopyToDataTable();
+
+                        for (int i = 0; i <= dtdsk.Rows.Count - 1; i++)
+                        {
+                            PoNumber = dtdsk.Rows[i]["PoNumber"].ToString();
+                            GRNNumber = dtdsk.Rows[i]["GRNNumber"].ToString();
+                            AddInventoryEmail(Emplid, RoleID, UserID, PoNumber, GRNNumber);
+                        }
+                    }
+                    //END - Desktop Inventory Mail.
+
+
+                    //START - Laptop Inventory Mail.
+                    if (objDSInventory.Tables["InventoryLaptopDetailType"] != null && objDSInventory.Tables["InventoryLaptopDetailType"].Rows.Count > 0)
+                    {
+
+                        //DataTable dtlap = objDSInventory.Tables["InventoryLaptopDetailType"].AsEnumerable()
+                        //                .GroupBy(r => new { PoNumber = r["PoNumber"], GRNNumber = r["GRNNumber"] })
+                        //                .SelectMany(g => g.OrderBy(r => r["PoNumber"]))
+                        //                .Distinct()
+                        //                .CopyToDataTable();
+
+                        var lap = from rows in objDSInventory.Tables["InventoryLaptopDetailType"].AsEnumerable()
+                                  orderby rows["PoNumber"] descending
+                                  group rows by new { PoNumber = rows["PoNumber"], GRNNumber = rows["GRNNumber"] } into grp
+                                  select grp.First();
+
+                        DataTable dtlap = lap.CopyToDataTable();
+
+                        for (int i = 0; i <= dtlap.Rows.Count - 1; i++)
+                        {
+                            PoNumber = dtlap.Rows[i]["PoNumber"].ToString();
+                            GRNNumber = dtlap.Rows[i]["GRNNumber"].ToString();
+                            AddInventoryEmail(Emplid, RoleID, UserID, PoNumber, GRNNumber);
+                        }
+                    }
+                    //END -   Laptop Inventory Mail.
+
+
+                    //START - Network Inventory Mail.
+                    if (objDSInventory.Tables["InventoryNetworkDetailType"] != null && objDSInventory.Tables["InventoryNetworkDetailType"].Rows.Count > 0)
+                    {
+
+                        //DataTable dtnwk = objDSInventory.Tables["InventoryNetworkDetailType"].AsEnumerable()
+                        //                .GroupBy(r => new { PoNumber = r["PoNumber"], GRNNumber = r["GRNNumber"] })
+                        //                .SelectMany(g => g.OrderBy(r => r["PoNumber"]))
+                        //                .Distinct()
+                        //                .CopyToDataTable();
+
+                        var ntw = from rows in objDSInventory.Tables["InventoryNetworkDetailType"].AsEnumerable()
+                                  orderby rows["PoNumber"] descending
+                                  group rows by new { PoNumber = rows["PoNumber"], GRNNumber = rows["GRNNumber"] } into grp
+                                  select grp.First();
+
+                        DataTable dtnwk = ntw.CopyToDataTable();
+                        for (int i = 0; i <= dtnwk.Rows.Count - 1; i++)
+                        {
+                            PoNumber = dtnwk.Rows[i]["PoNumber"].ToString();
+                            GRNNumber = dtnwk.Rows[i]["GRNNumber"].ToString();
+                            AddInventoryEmail(Emplid, RoleID, UserID, PoNumber, GRNNumber);
+                        }
+                    }
+                    //END   - Network Inventory Mail.
+
+                    //START - Server Inventory Mail.
+                    if (objDSInventory.Tables["InventoryServerDetailType"] != null && objDSInventory.Tables["InventoryServerDetailType"].Rows.Count > 0)
+                    {
+
+                        //DataTable dtser = objDSInventory.Tables["InventoryServerDetailType"].AsEnumerable()
+                        //                .GroupBy(r => new { PoNumber = r["PoNumber"], GRNNumber = r["GRNNumber"] })
+                        //                .SelectMany(g => g.OrderBy(r => r["PoNumber"]))
+                        //                .Distinct()
+                        //                .CopyToDataTable();
+
+                        var ser = from rows in objDSInventory.Tables["InventoryServerDetailType"].AsEnumerable()
+                                  orderby rows["PoNumber"] descending
+                                  group rows by new { PoNumber = rows["PoNumber"], GRNNumber = rows["GRNNumber"] } into grp
+                                  select grp.First();
+
+                        DataTable dtser = ser.CopyToDataTable();
+                        for (int i = 0; i <= dtser.Rows.Count - 1; i++)
+                        {
+                            PoNumber = dtser.Rows[i]["PoNumber"].ToString();
+                            GRNNumber = dtser.Rows[i]["GRNNumber"].ToString();
+                            AddInventoryEmail(Emplid, RoleID, UserID, PoNumber, GRNNumber);
+                        }
+                    }
+                    //END -   Server Inventory Mail.
+
+                    //START - Telecom Inventory Mail.
+                    if (objDSInventory.Tables["InventoryTelecomDetailType"] != null && objDSInventory.Tables["InventoryTelecomDetailType"].Rows.Count > 0)
+                    {
+
+                        //DataTable dttelcom = objDSInventory.Tables["InventoryTelecomDetailType"].AsEnumerable()
+                        //                .GroupBy(r => new { PoNumber = r["PoNumber"], GRNNumber = r["GRNNumber"] })
+                        //                .SelectMany(g => g.OrderBy(r => r["PoNumber"]))
+                        //                .Distinct()
+                        //                .CopyToDataTable();
+                        var tel = from rows in objDSInventory.Tables["InventoryTelecomDetailType"].AsEnumerable()
+                                  orderby rows["PoNumber"] descending
+                                  group rows by new { PoNumber = rows["PoNumber"], GRNNumber = rows["GRNNumber"] } into grp
+                                  select grp.First();
+
+                        DataTable dttelcom = tel.CopyToDataTable();
+                        for (int i = 0; i <= dttelcom.Rows.Count - 1; i++)
+                        {
+                            PoNumber = dttelcom.Rows[i]["PoNumber"].ToString();
+                            GRNNumber = dttelcom.Rows[i]["GRNNumber"].ToString();
+                            AddInventoryEmail(Emplid, RoleID, UserID, PoNumber, GRNNumber);
+                        }
+                    }
+                    //END   - Telecom Inventory Mail.
+
+                    //Start - Infra Inventory P2 Changes
+
+                    if (objDSInventory.Tables["InventoryInfraDetailType"] != null && objDSInventory.Tables["InventoryInfraDetailType"].Rows.Count > 0)
+                    {
+
+                        var infra = from rows in objDSInventory.Tables["InventoryInfraDetailType"].AsEnumerable()
+                                    orderby rows["PoNumber"] descending
+                                    group rows by new { PoNumber = rows["PoNumber"], GRNNumber = rows["GRNNumber"] } into grp
+                                    select grp.First();
+
+                        DataTable dtinfra = infra.CopyToDataTable();
+                        for (int i = 0; i <= dtinfra.Rows.Count - 1; i++)
+                        {
+                            PoNumber = dtinfra.Rows[i]["PoNumber"].ToString();
+                            GRNNumber = dtinfra.Rows[i]["GRNNumber"].ToString();
+                            AddInventoryEmail(Emplid, RoleID, UserID, PoNumber, GRNNumber);
+                        }
+                    }
+
+                    //End - Infra Inventory P2 Changes
+
+
+                    AddInventoryEmailToInternalTeam(Emplid, RoleID, UserID, objDSInventory.Tables["InventoryDesktopDetailType"], objDSInventory.Tables["InventoryLaptopDetailType"], objDSInventory.Tables["InventoryNetworkDetailType"], objDSInventory.Tables["InventoryServerDetailType"], objDSInventory.Tables["InventoryTelecomDetailType"]
+
+                        //Start - Infra Inventory P2 Changes
+                        , objDSInventory.Tables["InventoryInfraDetailType"]
+                        //End - Infra Inventory P2 Changes
+                        );
+                    #endregion mail
+                }
+            }
+
+
+            if (ds.Tables.Count >= 2)
+            {
+                if (ds.Tables[1].Rows.Count > 0)
+                {
+                    obj.StatusCode = "500";
+                    ds.Tables[1].TableName = "Desktop";
+                    obj.dtError = ds.Tables[1];
+                }
+
+            }
+
+            if (ds.Tables.Count >= 3)
+            {
+                if (ds.Tables[2].Rows.Count > 0)
+                {
+                    obj.StatusCode = "500";
+                    ds.Tables[2].TableName = "Laptop";
+                    obj.dtErrorL = ds.Tables[2];
+                }
+
+            }
+            if (ds.Tables.Count >= 4)
+            {
+                if (ds.Tables[3].Rows.Count > 0)
+                {
+                    obj.StatusCode = "500";
+                    ds.Tables[3].TableName = "Network";
+                    obj.dtErrorN = ds.Tables[3];
+                }
+
+            }
+            if (ds.Tables.Count >= 5)
+            {
+                if (ds.Tables[4].Rows.Count > 0)
+                {
+                    obj.StatusCode = "500";
+                    ds.Tables[4].TableName = "Server";
+                    obj.dtErrorS = ds.Tables[4];
+                }
+
+            }
+            if (ds.Tables.Count >= 6)
+            {
+                if (ds.Tables[5].Rows.Count > 0)
+                {
+                    obj.StatusCode = "500";
+                    ds.Tables[5].TableName = "Telecom";
+                    obj.dtErrorT = ds.Tables[5];
+                }
+
+            }
+
+            //Start - Infra Inventory P2 Changes
+            if (ds.Tables.Count >= 7)
+            {
+                if (ds.Tables[6].Rows.Count > 0)
+                {
+                    obj.StatusCode = "500";
+                    ds.Tables[6].TableName = "Infra";
+                    obj.dtErrorI = ds.Tables[6];
+                }
+
+            }
+            //End - Infra Inventory P2 Changes
+
+            //END - Mail fired when Inventory Upload
+
+
+
+            return obj;
+        }
+
+
+        #endregion
+
+
+
+        #region Region Data Migration Upload Inventory
+
+        ///// <summary>
+        ///// Add Bulk Inventory details
+        ///// </summary>
+        ///// <param name="objInventoryEntity"></param>
+        ///// <param name="objDSInventory"></param>
+        ///// <returns></returns>
+        //public InventoryEntity AddBulkInventory(InventoryEntity objInventoryEntity, DataSet objDSInventory)
+        //{
+        //    InventoryEntity obj = new InventoryEntity();
+
+        //   #region Desktop
+        //    /*
+        //    if (objDSInventory.Tables["InventoryDesktopDetailType"].Rows.Count > 0)
+        //    {
+
+        //        SqlBulkCopyOptions bulckCopyoption = new SqlBulkCopyOptions();
+
+        //        using (SqlBulkCopy bulkCopy = new SqlBulkCopy(Utility.ConnectionString, bulckCopyoption))
+        //        {
+        //            // Set destination table name
+        //            bulkCopy.DestinationTableName = "InventoryDesktopDetailType_tmp";
+
+        //            //Mapp columns source and destination      
+        //            bulkCopy.ColumnMappings.Add("PoNumber", "PoNumber");
+        //            bulkCopy.ColumnMappings.Add("PoId", "PoId");
+        //            bulkCopy.ColumnMappings.Add("PoDate", "PoDate");
+        //            bulkCopy.ColumnMappings.Add("GRNNumber", "GRNNumber");
+        //            bulkCopy.ColumnMappings.Add("GRNDate", "GRNDate");
+        //            bulkCopy.ColumnMappings.Add("ItemCode", "ItemCode");
+        //            bulkCopy.ColumnMappings.Add("TAGCount", "TAGCount");
+        //            bulkCopy.ColumnMappings.Add("MajorCategory", "MajorCategory");
+        //            bulkCopy.ColumnMappings.Add("MinorCategory", "MinorCategory");
+        //            bulkCopy.ColumnMappings.Add("MinorSubCategory", "MinorSubCategory");
+        //            bulkCopy.ColumnMappings.Add("Description", "Description");
+        //            bulkCopy.ColumnMappings.Add("ManufacturerName", "ManufacturerName");
+        //            bulkCopy.ColumnMappings.Add("TaggableTypeID", "TaggableTypeID");
+        //            bulkCopy.ColumnMappings.Add("AssetTypeID", "AssetTypeID");
+        //            bulkCopy.ColumnMappings.Add("ExpTypeID", "ExpTypeID");
+        //            bulkCopy.ColumnMappings.Add("DualHostName", "DualHostName");
+        //            bulkCopy.ColumnMappings.Add("DeskID", "DeskID");
+        //            bulkCopy.ColumnMappings.Add("IPAddress", "IPAddress");
+        //            bulkCopy.ColumnMappings.Add("Make", "MakeDesktopID");
+        //            bulkCopy.ColumnMappings.Add("ModelSize", "ModelSize");
+        //            bulkCopy.ColumnMappings.Add("Processor", "Processor");
+        //            bulkCopy.ColumnMappings.Add("RAM", "RAM");
+        //            bulkCopy.ColumnMappings.Add("HardDisk", "HardDisk");
+        //            bulkCopy.ColumnMappings.Add("DomainName", "DomainName");
+        //            bulkCopy.ColumnMappings.Add("SharedDedicated", "SharedDedicated");
+        //            bulkCopy.ColumnMappings.Add("project", "project");
+        //            bulkCopy.ColumnMappings.Add("Location1", "Location1");
+        //            bulkCopy.ColumnMappings.Add("wing", "wing");
+        //            bulkCopy.ColumnMappings.Add("AssetId", "AssetId");
+        //            bulkCopy.ColumnMappings.Add("InstalledOperatingSystem", "InstalledOperatingSystem");
+        //            bulkCopy.ColumnMappings.Add("PurchasedOS", "PurchasedOS");
+        //            bulkCopy.ColumnMappings.Add("MSOffice", "MSOffice");
+        //            bulkCopy.ColumnMappings.Add("OCSClient", "OCSClient");
+        //            bulkCopy.ColumnMappings.Add("AcrobatReader", "AcrobatReader");
+        //            bulkCopy.ColumnMappings.Add("Winzip", "Winzip");
+        //            bulkCopy.ColumnMappings.Add("Antivirus", "Antivirus");
+        //            bulkCopy.ColumnMappings.Add("OtherSoftware", "OtherSoftware");
+        //            bulkCopy.ColumnMappings.Add("WarrantyStart", "WarrantyStart");
+        //            bulkCopy.ColumnMappings.Add("WarrantyEnd", "WarrantyEnd");
+        //            bulkCopy.ColumnMappings.Add("AgeSpend", "AgeSpend");
+        //            bulkCopy.ColumnMappings.Add("PhysicalVerification", "PhysicalVerification");
+        //            bulkCopy.ColumnMappings.Add("StockStatusDesktopID", "StockStatusDesktopID");
+        //            bulkCopy.ColumnMappings.Add("BOND", "bond");
+        //            bulkCopy.ColumnMappings.Add("Hostname", "Hostname");
+        //            bulkCopy.ColumnMappings.Add("AllocationTypeID", "AllocationTypeID");
+        //            bulkCopy.ColumnMappings.Add("SystemAssetID", "SystemAssetID");
+        //            bulkCopy.ColumnMappings.Add("SerialNumber", "SerialNumber");
+        //            bulkCopy.ColumnMappings.Add("TAGNumber", "TAGNumber");
+        //            bulkCopy.ColumnMappings.Add("Location", "Location");
+        //            bulkCopy.ColumnMappings.Add("SubLocation", "SubLocation");
+        //            bulkCopy.ColumnMappings.Add("SubMinorCategory", "SubMinorCategory");
+        //            bulkCopy.ColumnMappings.Add("AssetBookType", "BOOK_TYPE_CODE");
+
+        //            bulkCopy.BulkCopyTimeout = 3600000;
+        //            bulkCopy.BatchSize = 20000;
+        //            bulkCopy.WriteToServer(objDSInventory.Tables["InventoryDesktopDetailType"]); // Write data 
+        //        }
+
+        //    }
+        //    */
+        //    #endregion
+
+        //   #region Laptop
+        //    /*
+        //    if (objDSInventory.Tables["InventoryLaptopDetailType"].Rows.Count > 0)
+        //    {
+        //        SqlBulkCopyOptions bulckCopyoption = new SqlBulkCopyOptions();
+
+        //        using (SqlBulkCopy bulkCopy = new SqlBulkCopy(Utility.ConnectionString, bulckCopyoption))
+        //        {
+        //            // Set destination table name
+        //            bulkCopy.DestinationTableName = "InventoryLaptopDetailType_tmp";
+
+        //            //Mapp columns source and destination      
+        //            bulkCopy.ColumnMappings.Add("PoNumber", "PoNumber");
+        //            bulkCopy.ColumnMappings.Add("PoId", "PoId");
+        //            bulkCopy.ColumnMappings.Add("PoDate", "PoDate");
+        //            bulkCopy.ColumnMappings.Add("GRNNumber", "GRNNumber");
+        //            bulkCopy.ColumnMappings.Add("GRNDate", "GRNDate");
+        //            bulkCopy.ColumnMappings.Add("ItemCode", "ItemCode");
+        //            bulkCopy.ColumnMappings.Add("TAGCount", "TAGCount");
+        //            bulkCopy.ColumnMappings.Add("MajorCategory", "MajorCategory");
+        //            bulkCopy.ColumnMappings.Add("MinorCategory", "MinorCategory");
+        //            bulkCopy.ColumnMappings.Add("MinorSubCategory", "MinorSubCategory");
+        //            bulkCopy.ColumnMappings.Add("Description", "Description");
+        //            bulkCopy.ColumnMappings.Add("ManufacturerName", "ManufacturerName");
+        //            bulkCopy.ColumnMappings.Add("TaggableTypeID", "TaggableTypeID");
+        //            bulkCopy.ColumnMappings.Add("AssetTypeID", "AssetTypeID");
+        //            bulkCopy.ColumnMappings.Add("ExpTypeID", "ExpTypeID");
+        //            bulkCopy.ColumnMappings.Add("EmployeeID", "EmployeeID");
+        //            bulkCopy.ColumnMappings.Add("EmployeeName", "EmployeeName");
+        //            bulkCopy.ColumnMappings.Add("Model", "Model");
+        //            bulkCopy.ColumnMappings.Add("BadgeID", "BadgeID");
+        //            bulkCopy.ColumnMappings.Add("IssueDate", "IssueDate");
+        //            bulkCopy.ColumnMappings.Add("ExpectedReturnDate", "ExpectedReturnDate");
+        //            bulkCopy.ColumnMappings.Add("IsReturned", "IsReturned");
+        //            bulkCopy.ColumnMappings.Add("Make", "Make");
+        //            bulkCopy.ColumnMappings.Add("SerialNumber", "SerialNumber");
+        //            bulkCopy.ColumnMappings.Add("TAGNumber", "TAGNumber");
+        //            bulkCopy.ColumnMappings.Add("Location", "Location");
+        //            bulkCopy.ColumnMappings.Add("SubLocation", "SubLocation");
+        //            bulkCopy.ColumnMappings.Add("SubMinorCategory", "SubMinorCategory");
+        //            bulkCopy.ColumnMappings.Add("AssetBookType", "BOOK_TYPE_CODE");
+
+        //            bulkCopy.BulkCopyTimeout = 3600000;
+        //            bulkCopy.BatchSize = 20000;
+        //            bulkCopy.WriteToServer(objDSInventory.Tables["InventoryLaptopDetailType"]); // Write data 
+        //        }
+        //    }
+        //    */
+        //    #endregion
+
+        //   #region Network
+        //   /*
+        //   if (objDSInventory.Tables["InventoryNetworkDetailType"].Rows.Count > 0)
+        //   {
+        //       SqlBulkCopyOptions bulckCopyoption = new SqlBulkCopyOptions();
+
+        //       using (SqlBulkCopy bulkCopy = new SqlBulkCopy(Utility.ConnectionString, bulckCopyoption))
+        //       {
+        //           // Set destination table name
+        //           bulkCopy.DestinationTableName = "InventoryNetworkDetailType_tmp";
+
+        //           //Mapp columns source and destination      
+
+        //           bulkCopy.ColumnMappings.Add("PoNumber", "PoNumber");
+        //           bulkCopy.ColumnMappings.Add("PoId", "PoId");
+        //           bulkCopy.ColumnMappings.Add("PoDate", "PoDate");
+        //           bulkCopy.ColumnMappings.Add("GRNNumber", "GRNNumber");
+        //           bulkCopy.ColumnMappings.Add("GRNDate", "GRNDate");
+        //           bulkCopy.ColumnMappings.Add("ItemCode", "ItemCode");
+        //           bulkCopy.ColumnMappings.Add("TAGCount", "TAGCount");
+        //           bulkCopy.ColumnMappings.Add("MajorCategory", "MajorCategory");
+        //           bulkCopy.ColumnMappings.Add("MinorCategory", "MinorCategory");
+        //           bulkCopy.ColumnMappings.Add("MinorSubCategory", "MinorSubCategory");
+        //           bulkCopy.ColumnMappings.Add("Description", "Description");
+        //           bulkCopy.ColumnMappings.Add("ManufacturerName", "ManufacturerName");
+        //           bulkCopy.ColumnMappings.Add("TaggableTypeID", "TaggableTypeID");
+        //           bulkCopy.ColumnMappings.Add("AssetTypeID", "AssetTypeID");
+        //           bulkCopy.ColumnMappings.Add("ExpTypeID", "ExpTypeID");
+        //           bulkCopy.ColumnMappings.Add("Make", "MakeNetworkID");
+        //           bulkCopy.ColumnMappings.Add("Model", "Model");
+        //           bulkCopy.ColumnMappings.Add("StockStatusNetworkID", "StockStatusNetworkID");
+        //           bulkCopy.ColumnMappings.Add("DeviceLife", "DeviceLife");
+        //           bulkCopy.ColumnMappings.Add("DefineScope", "DefineScope");
+        //           bulkCopy.ColumnMappings.Add("EndoflifeofdeviceID", "EndoflifeofdeviceID");
+        //           bulkCopy.ColumnMappings.Add("DeviceSupportID", "DeviceSupportID");
+        //           bulkCopy.ColumnMappings.Add("ModelSize", "ModelSize");
+        //           bulkCopy.ColumnMappings.Add("Processname", "Processname");
+        //           bulkCopy.ColumnMappings.Add("SharedDedicatedID", "SharedDedicatedID");
+        //           bulkCopy.ColumnMappings.Add("SystemAssetID", "SystemAssetID");
+        //           bulkCopy.ColumnMappings.Add("IPAddress", "IPAddress");
+        //           bulkCopy.ColumnMappings.Add("SiteName", "SiteName");
+        //           bulkCopy.ColumnMappings.Add("AssetTypeNetworkID", "AssetTypeNetworkID");
+        //           bulkCopy.ColumnMappings.Add("SerialNumber", "SerialNumber");
+        //           bulkCopy.ColumnMappings.Add("TAGNumber", "TAGNumber");
+        //           bulkCopy.ColumnMappings.Add("Location", "Location");
+        //           bulkCopy.ColumnMappings.Add("SubLocation", "SubLocation");
+        //           bulkCopy.ColumnMappings.Add("SubMinorCategory", "SubMinorCategory");
+        //           bulkCopy.ColumnMappings.Add("AssetBookType", "BOOK_TYPE_CODE");
+
+
+        //           bulkCopy.BulkCopyTimeout = 3600000;
+        //           bulkCopy.BatchSize = 20000;
+        //           bulkCopy.WriteToServer(objDSInventory.Tables["InventoryNetworkDetailType"]); // Write data 
+        //       }
+        //   }
+        //   */
+        //    #endregion
+
+        //    #region Server
+        //    /*
+        //    if (objDSInventory.Tables["InventoryServerDetailType"].Rows.Count > 0)
+        //    {
+
+        //        SqlBulkCopyOptions bulckCopyoption = new SqlBulkCopyOptions();
+
+        //        using (SqlBulkCopy bulkCopy = new SqlBulkCopy(Utility.ConnectionString, bulckCopyoption))
+        //        {
+        //            // Set destination table name
+        //            bulkCopy.DestinationTableName = "InventoryServerDetailType_tmp";
+
+        //            //Mapp columns source and destination      
+
+        //            bulkCopy.ColumnMappings.Add("PoNumber", "PoNumber");
+        //            bulkCopy.ColumnMappings.Add("PoId", "PoId");
+        //            bulkCopy.ColumnMappings.Add("PoDate", "PoDate");
+        //            bulkCopy.ColumnMappings.Add("GRNNumber", "GRNNumber");
+        //            bulkCopy.ColumnMappings.Add("GRNDate", "GRNDate");
+        //            bulkCopy.ColumnMappings.Add("ItemCode", "ItemCode");
+        //            bulkCopy.ColumnMappings.Add("TAGCount", "TAGCount");
+        //            bulkCopy.ColumnMappings.Add("MajorCategory", "MajorCategory");
+        //            bulkCopy.ColumnMappings.Add("MinorCategory", "MinorCategory");
+        //            bulkCopy.ColumnMappings.Add("MinorSubCategory", "MinorSubCategory");
+        //            bulkCopy.ColumnMappings.Add("Description", "Description");
+        //            bulkCopy.ColumnMappings.Add("ManufacturerName", "ManufacturerName");
+        //            bulkCopy.ColumnMappings.Add("TaggableTypeID", "TaggableTypeID");
+        //            bulkCopy.ColumnMappings.Add("AssetTypeID", "AssetTypeID");
+        //            bulkCopy.ColumnMappings.Add("ExpTypeID", "ExpTypeID");
+        //            bulkCopy.ColumnMappings.Add("ServerName", "ServerName");
+        //            bulkCopy.ColumnMappings.Add("ServerUsage", "ServerUsage");
+        //            bulkCopy.ColumnMappings.Add("ServerDomain", "ServerDomain");
+        //            bulkCopy.ColumnMappings.Add("ServerRole", "ServerRole");
+        //            bulkCopy.ColumnMappings.Add("AcquistionDate", "AcquistionDate");
+        //            bulkCopy.ColumnMappings.Add("Asset", "Asset");
+        //            bulkCopy.ColumnMappings.Add("AssetNo", "AssetNo");
+        //            bulkCopy.ColumnMappings.Add("Environment", "Environment");
+        //            bulkCopy.ColumnMappings.Add("ServerStatusID", "ServerStatusID");
+        //            bulkCopy.ColumnMappings.Add("Product", "Product");
+        //            bulkCopy.ColumnMappings.Add("Type", "Type");
+        //            bulkCopy.ColumnMappings.Add("TypeNo", "TypeNo");
+        //            bulkCopy.ColumnMappings.Add("OSType", "OSType");
+        //            bulkCopy.ColumnMappings.Add("OS", "OS");
+        //            bulkCopy.ColumnMappings.Add("NoOfProcessor", "NoOfProcessor");
+        //            bulkCopy.ColumnMappings.Add("SerialNumber", "SerialNumber");
+        //            bulkCopy.ColumnMappings.Add("TAGNumber", "TAGNumber");
+        //            bulkCopy.ColumnMappings.Add("Location", "Location");
+        //            bulkCopy.ColumnMappings.Add("SubLocation", "SubLocation");
+        //            bulkCopy.ColumnMappings.Add("SubMinorCategory", "SubMinorCategory");
+        //            bulkCopy.ColumnMappings.Add("AssetBookType", "BOOK_TYPE_CODE");
+
+
+
+        //            bulkCopy.BulkCopyTimeout = 3600000;
+        //            bulkCopy.BatchSize = 20000;
+        //            bulkCopy.WriteToServer(objDSInventory.Tables["InventoryServerDetailType"]); // Write data 
+        //        }
+        //    }
+        //    */
+        //    #endregion
+
+        //    #region Telecom
+        //    /*
+        //    if (objDSInventory.Tables["InventoryTelecomDetailType"].Rows.Count > 0)
+        //    {
+        //        SqlBulkCopyOptions bulckCopyoption = new SqlBulkCopyOptions();
+
+        //        using (SqlBulkCopy bulkCopy = new SqlBulkCopy(Utility.ConnectionString, bulckCopyoption))
+        //        {
+        //            // Set destination table name
+        //            bulkCopy.DestinationTableName = "InventoryTelecomDetailType_tmp";
+
+        //            //Mapp columns source and destination      
+        //            bulkCopy.ColumnMappings.Add("PoNumber", "PoNumber");
+        //            bulkCopy.ColumnMappings.Add("PoId", "PoId");
+        //            bulkCopy.ColumnMappings.Add("PoDate", "PoDate");
+        //            bulkCopy.ColumnMappings.Add("GRNNumber", "GRNNumber");
+        //            bulkCopy.ColumnMappings.Add("GRNDate", "GRNDate");
+        //            bulkCopy.ColumnMappings.Add("ItemCode", "ItemCode");
+        //            bulkCopy.ColumnMappings.Add("TAGCount", "TAGCount");
+        //            bulkCopy.ColumnMappings.Add("MajorCategory", "MajorCategory");
+        //            bulkCopy.ColumnMappings.Add("MinorCategory", "MinorCategory");
+        //            bulkCopy.ColumnMappings.Add("MinorSubCategory", "MinorSubCategory");
+        //            bulkCopy.ColumnMappings.Add("Description", "Description");
+        //            bulkCopy.ColumnMappings.Add("ManufacturerName", "ManufacturerName");
+        //            bulkCopy.ColumnMappings.Add("TaggableTypeID", "TaggableTypeID");
+        //            bulkCopy.ColumnMappings.Add("AssetTypeID", "AssetTypeID");
+        //            bulkCopy.ColumnMappings.Add("ExpTypeID", "ExpTypeID");
+        //            bulkCopy.ColumnMappings.Add("HostName", "HostName");
+        //            bulkCopy.ColumnMappings.Add("Make", "MakeTelecomID");
+        //            bulkCopy.ColumnMappings.Add("ModelTelecom", "ModelTelecom");
+        //            bulkCopy.ColumnMappings.Add("DeviceLifeTelecomID", "DeviceLifeTelecomID");
+        //            bulkCopy.ColumnMappings.Add("StockStatusTelecomID", "StockStatusTelecomID");
+        //            bulkCopy.ColumnMappings.Add("AssetTypeTelecomID", "AssetTypeTelecomID");
+        //            bulkCopy.ColumnMappings.Add("SerialNumber", "SerialNumber");
+        //            bulkCopy.ColumnMappings.Add("TAGNumber", "TAGNumber");
+        //            bulkCopy.ColumnMappings.Add("Location", "Location");
+        //            bulkCopy.ColumnMappings.Add("SubLocation", "SubLocation");
+        //            bulkCopy.ColumnMappings.Add("SubMinorCategory", "SubMinorCategory");
+        //            bulkCopy.ColumnMappings.Add("AssetBookType", "BOOK_TYPE_CODE");
+
+
+        //            bulkCopy.BulkCopyTimeout = 3600000;
+        //            bulkCopy.BatchSize = 20000;
+        //            bulkCopy.WriteToServer(objDSInventory.Tables["InventoryTelecomDetailType"]); // Write data 
+        //        }
+        //    }
+        //   */
+        //    #endregion
+
+        //    #region Infra
+        //    /*
+        //    //Start - Infra Inventory P2 Changes
+        //    if (objDSInventory.Tables["InventoryInfraDetailType"].Rows.Count > 0)
+        //    {
+        //        SqlBulkCopyOptions bulckCopyoption = new SqlBulkCopyOptions();
+
+        //        using (SqlBulkCopy bulkCopy = new SqlBulkCopy(Utility.ConnectionString, bulckCopyoption))
+        //        {
+        //            // Set destination table name
+        //            bulkCopy.DestinationTableName = "InventoryInfraDetailType_tmp";
+
+        //            //Mapp columns source and destination      
+
+        //            bulkCopy.ColumnMappings.Add("PoNumber", "PoNumber");
+        //            bulkCopy.ColumnMappings.Add("PoId", "PoId");
+        //            bulkCopy.ColumnMappings.Add("PoDate", "PoDate");
+        //            bulkCopy.ColumnMappings.Add("GRNNumber", "GRNNumber");
+        //            bulkCopy.ColumnMappings.Add("GRNDate", "GRNDate");
+        //            bulkCopy.ColumnMappings.Add("ItemCode", "ItemCode");
+        //            bulkCopy.ColumnMappings.Add("TAGCount", "TAGCount");
+        //            bulkCopy.ColumnMappings.Add("MajorCategory", "MajorCategory");
+        //            bulkCopy.ColumnMappings.Add("MinorCategory", "MinorCategory");
+        //            bulkCopy.ColumnMappings.Add("MinorSubCategory", "MinorSubCategory");
+        //            bulkCopy.ColumnMappings.Add("Description", "Description");
+        //            bulkCopy.ColumnMappings.Add("ManufacturerName", "ManufacturerName");
+        //            bulkCopy.ColumnMappings.Add("TaggableTypeID", "TaggableTypeID");
+        //            bulkCopy.ColumnMappings.Add("AssetTypeID", "AssetTypeID");
+        //            bulkCopy.ColumnMappings.Add("ExpTypeID", "ExpTypeID");
+        //            bulkCopy.ColumnMappings.Add("SiteName", "SiteName");
+        //            bulkCopy.ColumnMappings.Add("InventoryAssetType", "InventoryAssetType");
+        //            bulkCopy.ColumnMappings.Add("HostName", "HostName");
+        //            bulkCopy.ColumnMappings.Add("ProcessName", "ProcessName");
+        //            bulkCopy.ColumnMappings.Add("IPAddress", "IPAddress");
+        //            bulkCopy.ColumnMappings.Add("Make", "Make");
+        //            bulkCopy.ColumnMappings.Add("Model", "Model");
+        //            bulkCopy.ColumnMappings.Add("SharedDedicated", "SharedDedicated");
+        //            bulkCopy.ColumnMappings.Add("DefineScope", "DefineScope");
+        //            bulkCopy.ColumnMappings.Add("DeviceSupport", "DeviceSupport");
+        //            bulkCopy.ColumnMappings.Add("StockStatus", "StockStatus");
+        //            bulkCopy.ColumnMappings.Add("SerialNumber", "SerialNumber");
+        //            bulkCopy.ColumnMappings.Add("TAGNumber", "TAGNumber");
+        //            bulkCopy.ColumnMappings.Add("Location", "Location");
+        //            bulkCopy.ColumnMappings.Add("SubLocation", "SubLocation");
+        //            bulkCopy.ColumnMappings.Add("SubMinorCategory", "SubMinorCategory");
+        //            bulkCopy.ColumnMappings.Add("AssetBookType", "BOOK_TYPE_CODE");
+
+
+        //            bulkCopy.BulkCopyTimeout = 3600000;
+        //            bulkCopy.BatchSize = 20000;
+        //            bulkCopy.WriteToServer(objDSInventory.Tables["InventoryInfraDetailType"]); // Write data 
+        //        }
+
+        //    }
+        //    */
+        //    #endregion
+
+
+        //    return obj;
+        //}
+
+        #endregion
+
+
+        /// <summary>
+        /// Method to send Email when add inventory.
+        /// </summary>
+        /// <param name="Emplid"></param>
+        /// <param name="RoleID"></param>
+        /// <param name="UserID"></param>
+        /// <param name="PoNumber"></param>
+        /// <param name="GRNNumber"></param>
+        public void AddInventoryEmail(string Emplid, string RoleID, string UserID, string PoNumber, string GRNNumber)
+        {
+            string spName = "Proc_SendEmailInventorySubmit";
+
+            SqlParameter[] SqlParameter = new SqlParameter[6];
+            SqlParameter[0] = new SqlParameter("@Emplid", SqlDbType.VarChar);
+            SqlParameter[0].Value = Convert.ToString(Emplid);//"3640000145";//);
+            SqlParameter[1] = new SqlParameter("@RoleID", SqlDbType.VarChar);
+            SqlParameter[1].Value = Convert.ToString(RoleID); //"O00007"; // 
+            SqlParameter[2] = new SqlParameter("@UserId", SqlDbType.VarChar);
+            SqlParameter[2].Value = Convert.ToString(UserID);// "5640000462";//;
+            SqlParameter[3] = new SqlParameter("@PrefixText", SqlDbType.VarChar);
+            SqlParameter[3].Value = "";//Convert.ToString(objInventoryEntity.PrefixText);// "5640000462";//;
+            SqlParameter[4] = new SqlParameter("@PONumber", SqlDbType.VarChar);
+            SqlParameter[4].Value = PoNumber;//Convert.ToString(objInventoryEntity.PrefixText);// "5640000462";//;
+            SqlParameter[5] = new SqlParameter("@GRNNumber", SqlDbType.VarChar);
+            SqlParameter[5].Value = GRNNumber;//Convert.ToString(objInventoryEntity.PrefixText);// "5640000462";//;
+            SqlHelper.ExecuteDataset(Utility.ConnectionString, CommandType.StoredProcedure, spName, SqlParameter);
+        }
+
+        /// <summary>
+        /// Add Inventory (Bulk) Email To Internal Team
+        /// </summary>
+        /// <param name="Emplid"></param>
+        /// <param name="RoleID"></param>
+        /// <param name="UserID"></param>
+        /// <param name="dsk"></param>
+        /// <param name="lap"></param>
+        /// <param name="net"></param>
+        /// <param name="ser"></param>
+        /// <param name="tel"></param>
+        /// <returns></returns>
+        //START --Add Inventory (Bulk) Email To Internal Team
+        public DataSet AddInventoryEmailToInternalTeam(string Emplid, string RoleID, string UserID,  DataTable dsk, DataTable lap,DataTable net, DataTable ser,DataTable tel,DataTable inf)
+        {
+
+            DataSet ds = new DataSet();
+            string spName = "Proc_SendEmailAddInventoryToInternalTeam";
+
+            SqlParameter[] SqlParameter = new SqlParameter[10];
+            SqlParameter[0] = new SqlParameter("@Emplid", SqlDbType.VarChar);
+            SqlParameter[0].Value = Convert.ToString(Emplid);
+            SqlParameter[1] = new SqlParameter("@RoleID", SqlDbType.VarChar);
+            SqlParameter[1].Value = Convert.ToString(RoleID);  
+            SqlParameter[2] = new SqlParameter("@UserId", SqlDbType.VarChar);
+            SqlParameter[2].Value = Convert.ToString(UserID);
+            SqlParameter[3] = new SqlParameter("@PrefixText", SqlDbType.VarChar);
+            SqlParameter[3].Value = "";
+
+            if (dsk != null && dsk.Rows.Count > 0)
+            {
+                SqlParameter[4] = new SqlParameter("@InventoryDesktopDetailType", dsk);
+                SqlParameter[4].SqlDbType = SqlDbType.Structured;
+            }
+
+            if (lap != null && lap.Rows.Count > 0)
+            {
+                SqlParameter[5] = new SqlParameter("@InventoryLaptopDetailType", lap);
+                SqlParameter[5].SqlDbType = SqlDbType.Structured;
+            }
+
+            if (net != null && net.Rows.Count > 0)
+            {
+                SqlParameter[6] = new SqlParameter("@InventoryNetworkDetailType", net);
+                SqlParameter[6].SqlDbType = SqlDbType.Structured;
+            }
+
+            if (ser != null && ser.Rows.Count > 0)
+            {
+                SqlParameter[7] = new SqlParameter("@InventoryServerDetailType", ser);
+                SqlParameter[7].SqlDbType = SqlDbType.Structured;
+            }
+
+            if (tel != null && tel.Rows.Count > 0)
+            {
+                SqlParameter[8] = new SqlParameter("@InventoryTelecomDetailType", tel);
+                SqlParameter[8].SqlDbType = SqlDbType.Structured;
+            }
+            //Start - Infra Inventory P2 Changes
+            if (inf != null && inf.Rows.Count > 0)
+            {
+                SqlParameter[9] = new SqlParameter("@InventoryInfraDetailType", inf);
+                SqlParameter[9].SqlDbType = SqlDbType.Structured;
+            }
+            //End - Infra Inventory P2 Changes
+            ds = SqlHelper.ExecuteDataset(Utility.ConnectionString, CommandType.StoredProcedure, spName, SqlParameter);
+            return ds;
+        }
+        //END --Add Inventory (Bulk) Email To Internal Team
+
+
+        /// <summary>
+        /// Add Inventory (Manual) Email To Internal Team
+        /// </summary>
+        /// <param name="Emplid"></param>
+        /// <param name="RoleID"></param>
+        /// <param name="UserID"></param>
+        /// <param name="dsk"></param>
+        /// <param name="lap"></param>
+        /// <param name="net"></param>
+        /// <param name="ser"></param>
+        /// <param name="tel"></param>
+        /// <returns></returns>
+        //START --Add Inventory (Manual) Email To Internal Team
+        public DataSet AddManualInventoryEmailToInternalTeam(string Emplid, string RoleID, string UserID, DataTable dsk, DataTable lap, DataTable net, DataTable ser, DataTable tel,DataTable inf)
+        {
+
+            DataSet ds = new DataSet();
+            string spName = "Proc_SendEmailAddManualInventoryToInternalTeam";
+
+            SqlParameter[] SqlParameter = new SqlParameter[10];
+            SqlParameter[0] = new SqlParameter("@Emplid", SqlDbType.VarChar);
+            SqlParameter[0].Value = Convert.ToString(Emplid);
+            SqlParameter[1] = new SqlParameter("@RoleID", SqlDbType.VarChar);
+            SqlParameter[1].Value = Convert.ToString(RoleID);
+            SqlParameter[2] = new SqlParameter("@UserId", SqlDbType.VarChar);
+            SqlParameter[2].Value = Convert.ToString(UserID);
+            SqlParameter[3] = new SqlParameter("@PrefixText", SqlDbType.VarChar);
+            SqlParameter[3].Value = "";
+
+            if (dsk != null && dsk.Rows.Count > 0)
+            {
+                SqlParameter[4] = new SqlParameter("@InventoryDesktopDetailType", dsk);
+                SqlParameter[4].SqlDbType = SqlDbType.Structured;
+            }
+
+            if (lap != null && lap.Rows.Count > 0)
+            {
+                SqlParameter[5] = new SqlParameter("@InventoryLaptopDetailType", lap);
+                SqlParameter[5].SqlDbType = SqlDbType.Structured;
+            }
+
+            if (net != null && net.Rows.Count > 0)
+            {
+                SqlParameter[6] = new SqlParameter("@InventoryNetworkDetailType", net);
+                SqlParameter[6].SqlDbType = SqlDbType.Structured;
+            }
+
+            if (ser != null && ser.Rows.Count > 0)
+            {
+                SqlParameter[7] = new SqlParameter("@InventoryServerDetailType", ser);
+                SqlParameter[7].SqlDbType = SqlDbType.Structured;
+            }
+
+            if (tel != null && tel.Rows.Count > 0)
+            {
+                SqlParameter[8] = new SqlParameter("@InventoryTelecomDetailType", tel);
+                SqlParameter[8].SqlDbType = SqlDbType.Structured;
+            }
+
+            //Start - Infra Inventory P2 Changes
+            if (inf != null && inf.Rows.Count > 0)
+            {
+                SqlParameter[9] = new SqlParameter("@InventoryInfraDetailType", inf);
+                SqlParameter[9].SqlDbType = SqlDbType.Structured;
+            }
+            //End - Infra Inventory P2 Changes
+
+
+            ds = SqlHelper.ExecuteDataset(Utility.ConnectionString, CommandType.StoredProcedure, spName, SqlParameter);
+            return ds;
+        }
+        //END --Add Inventory (Manual) Email To Internal Team
+
+    }
+}
