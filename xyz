@@ -1,0 +1,2452 @@
+var GRNNumber;
+var dsktopCount, laptopCount, serverCount, telecomCount, networkCount
+//Start - Infra Inventory P2 Changes
+,infraCount;
+//End - Infra Inventory P2 Changes
+
+
+
+$(document).ready(function () {
+    $('#ImgLoading').hide();
+    SearchText();
+    $('#divContent').hide();
+    // CrtDesktopFields();
+    // createDesktopFields();
+    //GetMake();
+    //GetStockStatus();
+    //EmptyTable();
+
+    //$("select").select2({
+    //    allowClear: true
+    //});
+
+    $.getScript("~/Content/assets/vendor/bootstrap-datepicker/bootstrap-datepicker.js");
+    var dateE = new Date();
+    dateE.setDate(dateE.getDate() + 1);
+    var FromEndDate = new Date();
+    var ToEndDate = new Date();
+    $('.calendar').datepicker({
+        autoclose: true
+
+    });
+    $('.calendar').datepicker({
+        autoclose: true,
+        startDate: dateE
+    });
+
+    GetCalendar();
+    //$(".datepicker").datepicker({
+    //    dateFormat: 'yy/m/d',
+    //    firstDay: 1,
+    //    changeMonth: true,
+    //    changeYear: true,
+    //    showOn: 'both',
+    //    autosize: true
+    //    //buttonText: "Select date",
+    //    //buttonImage: '../Content/images/calendar.png',
+    //    //buttonImageOnly: true
+    //});
+   
+});
+
+// Get GRN Number
+function IsTextChanged() {
+    var PONumber = $("#hdnPonumber").val();
+    var ob = { PoNumber: PONumber };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = '/Inventory/GetGRNNumber';
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = ob;
+    params['successCallbackFunction'] = GetPOSuccess;
+    doAjax(params);
+}
+
+
+function GetPOSuccess(data) {
+    //$('#drpgrnnumber').empty();
+    //for (var i = 0; i < data.length; i++) {
+    //    var opt = new Option(data[i].GRNNumber, data[i].GRNNumber);
+    //    $('#drpgrnnumber').append(opt);
+    //}
+    $('#drpgrnnumber').empty();
+
+    $.each(data, function (index, item) {
+        $("#drpgrnnumber").append(
+        $('<option></option>').val(item.GRNNumber).html(item.GRNNumber));
+    });
+    //   binddatatable();
+    //trigger("change")
+}
+
+
+
+$("#drpgrnnumber").change(function () {
+    //  bindInventoryType()
+});
+
+//Fetch PO Number
+function SearchText() {
+    var headers = JSON.stringify(SessionVariableData);
+    $('input.autosuggest').each(function (i, control) {
+
+        control = $(control);
+        //control = $('#txtEmployeeID');SearchText()
+        //control.keydown(function (event) {
+        //    if (event.keyCode == 8 || event.keyCode == 46) {
+        //        $("#hdnPonumber").val('0');
+        //        $(this).val('');
+        //        $("#drpgrnnumber option").remove();
+        //        $("#drpgrnnumber").val(null).trigger("change");//Clear selected Value
+        //        //$('#drpgrnnumber').select2("val", "").trigger("change");
+        //    }
+        //});
+        //control.keyup(function (event) {
+        //    if (event.keyCode == 8 || event.keyCode == 46) {
+        //        $("#hdnPonumber").val("0");
+        //        //$('#drpgrnnumber').select2("val", "").trigger("change");
+        //        $("#drpgrnnumber option").remove();
+        //        $("#drpgrnnumber").val(null).trigger("change");//Clear selected Value
+        //    }
+        //    else {
+        //        var zestid = control.val();
+        //        if (isNaN(zestid) == false) {
+        //            // $("#hdnPonumber").val(zestid);
+        //            $("#hdnPonumber").val('0');
+        //        }
+        //        else {
+        //            $("#hdnPonumber").val("0");
+        //            // $('#drpgrnnumber').select2("val", "").trigger("change");
+        //            $("#drpgrnnumber option").remove();
+        //            $("#drpgrnnumber").val(null).trigger("change");//Clear selected Value
+        //        }
+        //    }
+        //});
+
+        $("input.autosuggest").autocomplete({
+            minLength: 1,
+            delay: 1000,
+            source: function (request, response) {
+                //var LoginInfo = { PrefixText: request.term };
+                //var params = $.extend({}, doAjax_params_default);
+                //params['url'] = '/Inventory/FetchPONumber';
+                //params['requestType'] = "POST";
+                //params['contentType'] = "application/json";
+                //params['data'] = LoginInfo;
+                ////params['successCallbackFunction'] = function (data) {
+                ////    if (data.length > 0) {
+                ////        response(data);
+                ////    }
+                ////    else {
+                ////    }
+                ////},
+                //params['successCallbackFunction'] = function GetAutoCompleteSuccess(data) {
+                //    console.log(data);
+                //    if (data.length > 0) {
+                //        //response(data);
+
+                //        response($.map(data, function (item) {
+                //            return {
+                //                label: item.Name,//item.Value + ' (' + item.Name + ')',
+                //                value: item.Value,
+                //                name: item.Name
+                //            }
+                //        }))
+                //    }
+                //};
+                //doAjax(params);
+                $.ajax({
+                    type: "POST",
+                    contentType: "application/json; charset=utf-8",
+                    url: apiUrl + '/Inventory/FetchPONumber',
+                    headers: {
+                        "API_KEY": "OIU-ossf-PPooisu877",
+                        "Authorization": headers
+                    },
+                    dataType: "json",
+                    data: "{ 'PrefixText':'" + request.term + "'}",
+                    success: function (data) {
+                        console.log(data);
+                        if (data.length > 0) {
+
+                            response($.map(data, function (item) {
+                                return {
+                                    label: item.Name,
+                                    value: item.Value,
+                                    name: item.Name
+                                }
+                            }))
+                        }
+                    }
+
+                });
+            },
+            focus: function (event, ui) {
+                if (ui.item.value == 'Please enter valid PO Number') {
+                    $("#hdnPonumber").val("0");
+
+                    return false;
+                }
+            },
+            select: function (event, ui) {
+                var f = "Please enter valid PO Number";
+                if (ui.item.value.trim() == f.trim()) {
+                    $("#txtPonumber").val('');
+                    $("#hdnPonumber").val("0");
+                    $("#drpgrnnumber option").remove();
+                    $("#drpgrnnumber").val(null).trigger("change");//Clear selected Value
+                    return false;
+                }
+                else {
+                    $("#drpgrnnumber option").remove();
+                    $("#drpgrnnumber").val(null).trigger("change");//Clear selected Value
+                    $("#hdnPonumber").val('0');
+                    $("#hdnPonumber").val(ui.item.value);
+                    $("#txtPonumber").val(ui.item.name);//Splited[1].trim() + ' ' + Splited[2].trim()
+                    IsTextChanged();
+
+                   
+                    return false;
+                }
+            },
+
+            search: function () { $(this).addClass('working'); },
+            open: function () { $(this).removeClass('working'); },
+            autoFocus: true
+
+        });
+    });
+}
+
+//Get PO Date,GRN Date and Vendor Name
+function binddatatable() {
+
+    var PONumber = $("#hdnPonumber").val();
+    GRNNumber = $('#drpgrnnumber :selected').text();
+    var PrefixText = { PoNumber: PONumber, GRNNumber: GRNNumber };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = '/Inventory/GetPOGRNNumber';
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = PrefixText;
+    params['successCallbackFunction'] = GetPOGRNSuccess;
+    doAjax(params);
+    // bindInventoryType();
+
+
+}
+
+function GetPOGRNSuccess(data) {
+    $('#lblmanufacturename').empty();
+    $('#lblgrndate').empty();
+    $('#lblpodate').empty();
+    if (data.length > 0) {
+        $('#divContent').show();
+        $('#lblmanufacturename').text(data[0].ManufacturerName);
+        $('#lblgrndate').text(data[0].formatedGRNDate);
+        $('#lblpodate').text(data[0].formatedPODate);
+
+
+        $('#hdngrndate').val(data[0].GRNDate);
+        $('#hdnpodate').val(data[0].PoDate);
+
+    }
+}
+
+
+
+
+var $tblexampleAccordionDesktop;
+function CrtDesktopFields() {
+    var options = {
+        //url: "/Inventory/GetInventoryDesktopDetails",
+        columns: [{
+            field: "MajorCategory",
+            title: "Major Category",
+            filter: { type: "lable" }
+        },
+        {
+            field: "SubCategeory",
+            title: "Sub Category",
+            filter: { type: "lable" }
+        }
+        //,{
+        //    field: "TAGNumber",
+        //    title: "TAG Number",
+        //    filter: { type: "input" }
+        //},
+        //{
+        //    field: "SerialNumber",
+        //    title: "Serial Number",
+        //    filter: { type: "input" }
+        //},
+        //{
+        //    field: "TaggableType",
+        //    title: "Taggable Type",
+        //    filter: { type: "select" }
+        //}
+        ]
+    };
+
+    $tblexampleAccordionDesktop = $("#exampleAccordionDesktop").bootstrapTable(options);
+}
+
+function createDesktopFields() {
+
+
+    $(function () {
+        var options = {
+            //filterValues: {
+            //    taggableType: "Taggable"
+            //},
+            //url: "/Inventory/GetInventoryDesktopDetails",
+            columns: [
+            //    {
+            //    field: "Description",
+            //  //  title: "Description",
+            //    filter: {
+            //        type: "input"
+            //    }
+            //},
+            {
+                field: "MajorCategory",
+                //  title: "Major Category",
+                filter: {
+                    type: "label"
+                }
+            },
+            {
+                field: "SubCategeory",
+                // title: "Minor Category",
+                filter: {
+                    type: "label"
+                }
+            },
+            //{
+            //    field: "Sub-minorCategory",
+            //   // title: "Sub-minor Category",
+            //    filter: {
+            //        type: "label"
+            //    }
+            //},
+            //{
+            //    field: "Location",
+            //   // title: "Location",
+            //    filter: {
+            //        type: "label"
+            //    }
+            //},
+            //{
+            //    field: "AssetType",
+            //   // title: "Asset Type",
+            //    filter: {
+            //        type: "label"
+            //    }
+            //},
+            //{
+            //    field: "OPEX/CAPEX",
+            //  //  title: "OPEX / CAPEX",
+            //    filter: {
+            //        type: "label"
+            //    }
+            //},
+            //{
+            //    field: "TAGNumber",
+            //  //  title: "TAG Number",
+            //    filter: {
+
+            //        type: "input"
+            //    }
+            //},
+            //{
+            //    field: "SerialNumber",
+            //   // title: "Serial Number",
+            //    filter: {
+            //        type: "input"
+            //    }
+            //}
+          // , {
+          //  field: "TaggableType",
+          ////  title: "Taggable Type",
+          //  filter: {
+          //      type: "select",
+          //      data: []
+          //      }
+          //  },
+          //  {
+          //      field: "AllocationType",
+          //  //    title: "Allocation Type",
+          //      filter: {
+          //          type: "select",
+          //          data: []
+          //      }
+          //  }
+            //,{
+            //    field: "Make",
+            // //   title: "Make",
+            //    filter: {
+            //        type: "select",
+            //        data: []
+            //    }
+            //},
+
+            //{
+            //    field: "Model",
+            // //   title: "Model",
+            //    filter: {
+
+            //        type: "input"
+            //    }
+            //},
+
+            //{
+            //    field: "Processor",
+            //  //  title: "Processor",
+            //    filter: {
+
+            //        type: "input"
+            //    }
+            //},
+            //{
+            //    field: "PurchasedOS",
+            //  //  title: "Purchased OS",
+            //    filter: {
+
+            //        type: "input"
+            //    }
+            //},
+            //{
+            //    field: "StockStatus",
+            //  //  title: "Stock Status",
+            //    filter: {
+            //        type: "select",
+            //        data: []
+            //    }
+            //},
+            //{
+            //    field: "Action",
+            // //   title: "Action",
+            //    filter: {
+
+            //        type: "button"
+            //    }
+            //}
+            ],
+            filter: true
+        };
+
+        //var taggableType;
+        //var searchText = { ParameterDescr: 'Taggable Type' };
+        //var params = $.extend({}, doAjax_params_default);
+        //params['url'] = '/Inventory/GetParameterdesc';
+        //params['requestType'] = "POST";
+        //params['contentType'] = "application/json";
+        //params['data'] = searchText;
+        //params['successCallbackFunction'] = GetPOSuccesses;
+        //doAjax(params);
+
+        //function GetPOSuccesses(data) {
+        //    var arraycat = [];
+        //    for (var i = 0; i < data.length; i++) {
+        //        arraycat.push($.trim(data[i]));
+        //    }
+        //    taggableType = arraycat;
+        //}
+
+        //var AllocationType;
+        //var searchText = { ParameterDescr: 'AllocationType' };
+        //var params = $.extend({}, doAjax_params_default);
+        //params['url'] = '/Inventory/GetParameterdesc';
+        //params['requestType'] = "POST";
+        //params['contentType'] = "application/json";
+        //params['data'] = searchText;
+        //params['successCallbackFunction'] = GetAllocationType;
+        //doAjax(params);
+
+        //function GetAllocationType(data) {
+        //    var arraycat = [];
+        //    for (var i = 0; i < data.length; i++) {
+        //        arraycat.push($.trim(data[i]));
+        //    }
+        //    AllocationType = arraycat;
+        //}
+
+        //var Make;
+        //var searchText = { ParameterDescr: 'Make' };
+        //var params = $.extend({}, doAjax_params_default);
+        //params['url'] = '/Inventory/GetParameterdesc';
+        //params['requestType'] = "POST";
+        //params['contentType'] = "application/json";
+        //params['data'] = searchText;
+        //params['successCallbackFunction'] = GetMake;
+        //doAjax(params);
+
+        //function GetMake(data) {
+        //    var arraycat = [];
+        //    for (var i = 0; i < data.length; i++) {
+        //        arraycat.push($.trim(data[i]));
+        //    }
+        //    Make = arraycat;
+        //}
+
+        //var stockstatus;
+        //var searchText = { ParameterDescr: 'stockstatus' };
+        //var params = $.extend({}, doAjax_params_default);
+        //params['url'] = '/Inventory/GetParameterdesc';
+        //params['requestType'] = "POST";
+        //params['contentType'] = "application/json";
+        //params['data'] = searchText;
+        //params['successCallbackFunction'] = Getstockstatus;
+        //doAjax(params);
+
+        //function Getstockstatus(data) {
+        //    var arraycat = [];
+        //    for (var i = 0; i < data.length; i++) {
+        //        arraycat.push($.trim(data[i]));
+        //    }
+        //    stockstatus = arraycat;
+        //}
+
+        var $table = $("#exampleAccordionDesktop").bootstrapTable(options);
+        //$table.bootstrapTable("Description", "MajorCategory", "MinorCategory", "Sub-minorCategory", "Location", "AssetType", "OPEX/CAPEX", "TAGNumber", "SerialNumber", taggableType, AllocationType, Make, "Model", "Processor", "PurchasedOS", stockstatus, "StockStatus");
+        $table.bootstrapTable("MajorCategory", "SubCategeory");
+    });
+
+
+
+
+
+
+}
+/*
+
+function onSubmit() {
+    // alert('hi');
+ 
+    var desktopArray = [];
+    $("#exampleAccordionDesktop tr:gt(0)").each(function () {
+        var this_row = $(this);
+
+     
+     
+
+        //TD_InventoryDesktopDetail
+        var serNo = '', tagType = '', allocationType = '', make = '', model = '', DualHostName = '', DeskID = '', IPAddress = '', ModelSize = '', Processor = '', RAM = '',
+        HardDisk = '', DomainName = '', SharedDedicated = '', project = '', Location1 = '', wing = '', InstalledOperatingSystem = '',
+        PurchasedOS = '', MSOffice = '', OCSClient = '', AcrobatReader = '', Winzip = '', Antivirus = '', OtherSoftware = '', WarrantyStart = '',
+        WarrantyEnd = '', AgeSpend = '', PhysicalVerification = '', StockStatus = '', bond = '', Hostname = ''
+
+        tagNo = $.trim(this_row.find('.inputtag').val());
+        serNo = $.trim(this_row.find('.inputser').val());
+        WarrantyStart = $.trim(this_row.find('.inputWarStart').val());
+        WarrantyEnd = $.trim(this_row.find('.inputWarEnd').val());
+        Processor = $.trim(this_row.find('.inputProcessor').val());
+        allocationType = $.trim(this_row.find('.select-sm option:selected').text());
+
+
+
+        var InventoryDesktop = {
+
+            //'PoNumber': $('#txtPonumber').val(),
+            //'GRNNumber': GRNNumber,
+            //'ItemCode': ItemCode,
+
+            'DualHostName': DualHostName,
+            'DeskID': DeskID,
+            'IPAddress': IPAddress,
+            'Make': 'ACER',
+            'ModelSize': ModelSize,
+            'Processor': Processor,
+            'RAM': RAM,
+            'HardDisk': HardDisk,
+            'DomainName': DomainName,
+            'SharedDedicated': SharedDedicated,
+            'project': project,
+            'Location1': Location1,
+            'wing': wing,
+            'InstalledOperatingSystem': InstalledOperatingSystem,
+            'PurchasedOS': PurchasedOS,
+            'MSOffice': MSOffice,
+            'OCSClient': OCSClient,
+            'AcrobatReader': AcrobatReader,
+            'Winzip': Winzip,
+            'Antivirus': Antivirus,
+            'OtherSoftware': OtherSoftware,
+            'WarrantyStart': WarrantyStart,
+            'WarrantyEnd': WarrantyEnd,
+            'AgeSpend': AgeSpend,
+            'PhysicalVerification': PhysicalVerification,
+            'StockStatus': StockStatus,
+            'bond': bond,
+            'Hostname': Hostname,
+
+            //'TAGNumber': tagNo,
+            'SerialNumber': serNo,
+            //'TaggableTypeID': 1,//'Taggable',
+            'AssetTypeID': 1,//'Primary Desktop',
+            'Model': 'ACER01'
+        }
+
+        desktopArray.push(InventoryDesktop)
+    });
+    //console.log(desktopArray);
+    //return desktopArray;
+    //}
+
+     //TD_InventoryCommonDetail
+    var Location = '', TAGNumber=''
+
+    //TD_Inventory
+    var MajorCategory = '', MinorCategory = '', MinorSubCategory = '', ItemCode = '', AssetTypeID = 1, ExpTypeID = '', PoNumber = '', TaggableTypeID = 1; Location='';
+
+    var addInventory = {
+        lstInventoryDesktopDetailEntity: desktopArray, PoNumber: $.trim($('#txtPonumber').val()), GRNNumber: $.trim($('#drpgrnnumber :selected').text()), MajorCategory: MajorCategory, MinorCategory: MinorCategory,
+        MinorSubCategory: MinorSubCategory, ItemCode: ItemCode, AssetTypeID: AssetTypeID, ExpTypeID: ExpTypeID, TaggableTypeID: TaggableTypeID, Location: Location,
+        TAGNumber: TAGNumber
+    };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'Inventory/AddInventory';
+    params['data'] = addInventory;//JSON.stringify({ 'Description': data });
+    params['contentType'] = "application/json";
+    params['successCallbackFunction'] = function ManageInventorySuccess(msg) {
+        if (msg.sts == "200") {
+            alert(msg.Msg);
+        }
+        else {
+            alert(msg.Msg);
+        }
+    }
+    doAjax(params);
+}*/
+
+
+function onbtnGet() {
+
+    if ($("#hdnPonumber").val() == '0' || $("#hdnPonumber").val() == '') {
+        toastrStateConfig();
+        toastr['error']("Please select PO Number");
+        return false;
+    }
+    else if ($("#hdnPonumber").val() == '0' && $('#drpgrnnumber :selected').text() == '') {
+        toastrStateConfig();
+        toastr['error']("PO Number and GRN Number are mandatory");
+        return false;
+    }
+    else if ($("#hdnPonumber").val() != '0' && $('#drpgrnnumber :selected').text() == '') {
+        toastrStateConfig();
+        toastr['error']("Please select GRN Number");
+        return false;
+    }
+    else {
+        binddatatable();
+        bindInventoryType();
+        $("hdnPonumber").val('');
+        $("hdnGRNNumber").val('');
+
+        $("hdnPonumber").val($('#txtPonumber').val());
+        $("hdnGRNNumber").val($('#drpgrnnumber :selected').text());
+    }
+    ////console.log($("hdnPonumber").val());
+    //// console.log($("hdnGRNNumber").val());
+}
+
+//Load grid for respective inventory type for Data Entry
+function bindInventoryType() {
+
+    var PONumber = $("#hdnPonumber").val();
+    GRNNumber = $('#drpgrnnumber :selected').text();
+    var searchText = { PoNumber: PONumber, GRNNumber: GRNNumber };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = '/Inventory/GetMainInventory';
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = searchText;
+    params['beforeSendCallbackFunction'] = function beforeSendcallbackfun() { $('#ImgLoading').show(); };
+    params['successCallbackFunction'] = GetInventoryTypeSuccess;
+    doAjax(params);
+    $("#validateButton2").removeAttr("disabled", "");
+}
+
+function GetInventoryTypeSuccess(msg) {
+
+    $('#ImgLoading').hide();
+    $('.badge-success').html('');
+
+    var dektopHtml = "", laptopHtml = "", serverHtml = "", telecomHtml = "", networkHtml = ""
+      //Start - Infra Inventory P2 Changes
+      ,infraHtml = ""
+     //End - Infra Inventory P2 Changes
+    $("#tbodyDesktop").html(dektopHtml);
+    $("#tbodyLaptop").html(laptopHtml);
+    $("#tbodyServer").html(serverHtml);
+    $("#tbodyTelecom").html(telecomHtml);
+    $("#tbodyNetwork").html(networkHtml);
+
+    //Start - Infra Inventory P2 Changes
+    $("#tbodyInfra").html(infraHtml);
+    //End - Infra Inventory P2 Changes
+
+    var dsktopCountno = 0, laptopCountno = 0, serverCountno = 0, telecomCountno = 0, networkCountno = 0
+
+   //Start - Infra Inventory P2 Changes
+        , infraCountno = 0
+    //End - Infra Inventory P2 Changes
+
+    var incrementdesk = 0, incrementlaptop = 0, incrementserver = 0, incrementtelecom = 0, incrementnetwork = 0
+
+         //Start - Infra Inventory P2 Changes
+        , incrementinfra = 0
+        //End - Infra Inventory P2 Changes
+
+    //START Desktop Section
+    if (msg[0].dtInventoryDesktopDetailEntity.length > 0) {
+
+        for (j = 0; j <= msg[0].dtInventoryDesktopDetailEntity.length - 1 ; j++) {
+            // var dsktopCount, laptopCount, serverCount, telecomCount, networkCount;
+
+            //START Clear Count
+            // $('#laptopCount').html(''); ('#serverCount').html(''); ('#telecomCount').html(''); ('#networkCount').html('');
+            //END Clear Count
+
+            dsktopCount = $('#dsktopCount');
+            dsktopCount.html('');
+
+            dsktopCountno = dsktopCountno + (msg[0].dtInventoryDesktopDetailEntity[j].QUANTITY <= 0 ? 0 : msg[0].dtInventoryDesktopDetailEntity[j].QUANTITY);
+            dsktopCount.html(dsktopCountno);
+
+            var htmTaggable = msg[0].dtInventoryDesktopDetailEntity[j].TAG_TYPE;
+            var htmAllocationType = msg[0].dtInventoryDesktopDetailEntity[j].AllocationType;
+            var htmMake = msg[0].dtInventoryDesktopDetailEntity[j].Make;
+            var deskitemcode = msg[0].dtInventoryDesktopDetailEntity[j].ItemCode;
+
+            var majorcat, minorcat, subminorcategory, location, assettype, exptype,remark;
+            majorcat = msg[0].dtInventoryDesktopDetailEntity[j].MAJOR_CATEGORY;
+            minorcat = msg[0].dtInventoryDesktopDetailEntity[j].MINOR_CATEGORY;
+            subminorcategory = msg[0].dtInventoryDesktopDetailEntity[j].SubMinorCategory;
+            location = msg[0].dtInventoryDesktopDetailEntity[j].Location;
+
+            assettype = msg[0].dtInventoryDesktopDetailEntity[j].ASSET_TYPE;
+            exptype = msg[0].dtInventoryDesktopDetailEntity[j].EXP_TYPE;
+            remark = msg[0].dtInventoryDesktopDetailEntity[j].Remark;
+            var htmStockStatus = msg[0].dtInventoryDesktopDetailEntity[j].StockStatus;
+            var SubMinCategory = msg[0].dtInventoryDesktopDetailEntity[j].SubMinCategory;
+
+            for (i = 0; i <= msg[0].dtInventoryDesktopDetailEntity[j].QUANTITY - 1 ; i++) {
+
+                dektopHtml = dektopHtml + " <tr> "
+                + "<td><button type='button' class='btn btn-icon btn-dark btn-round btn-sm btn-expand_" + incrementdesk + " de' id='btnDeskdescription_" + incrementdesk + "' onclick='getDesktopDescription(this.id)' title='Expand'><i class='fa fa-plus-circle fa-lg'></i></button> <button type='button' class='btn btn-icon btn-dark btn-round btn-sm btn-collapse_" + incrementdesk + " dc' id='btnDeskdescription_" + incrementdesk + "' onclick='getDesktopDescription(this.id)' style='display: none' title='Collapse'><i class='fa fa-minus-circle fa-lg'></i></button>"
+                + "<div class='deskdatacntr' id='divDesktop_" + incrementdesk + "' style='display: none'> <div><span>Major Category:</span>" + majorcat + " </div><div><span>Minor Category:</span>" + minorcat + "</div><div><span>Sub-minor Category:</span>" + subminorcategory + "</div><div><span>Location:</span>" + location + "</div><div><span>Asset Type:</span>" + assettype + "</div><div><span>OPEX / CAPEX:</span>" + exptype + "</div><div><span>Taggable Type:</span>" + htmTaggable + "</div></div> </td>"
+                + "<td><input type='text' class='form-control inputtag' placeholder='Enter Tag Number' maxlength='14' id ='TagNumber" + incrementdesk + "'> </td> "
+                + " <td><input type='text' class='form-control inputser' placeholder='Enter Serial Number' maxlength='50' id ='SerialNumber" + incrementdesk + "'> </td>"
+                //+ "<td><input type='text' class='form-control inputWarStart' placeholder='Enter Warranty Start' id ='WarStart" + i + "'> </td>"
+                //+ "<td><input type='text' class='form-control inputWarEnd' placeholder='Enter Warranty End' id ='WarEnd" + i + "'> </td>"
+                + "<td> <select class='form-control empty select-sm make' data-plugin='select2' id ='Make" + incrementdesk + "'>" + htmMake + "</select></td>"
+                + "<td><input type='text' class='form-control inputdesklocation' placeholder='Enter Location' maxlength='500'  id ='deskLocation" + incrementdesk + "'> </td> "
+                + "<td> <select class='form-control empty select-sm allocationtype' data-plugin='select2' id ='AllocationType" + incrementdesk + "'>" + htmAllocationType + "</select></td>"
+                + "<td><input type='text' class='form-control inputProcessor' placeholder='Enter Processor' id ='Processor" + incrementdesk + "'> </td>"
+                + "<td><input type='text' class='form-control inputPurchaseos' placeholder='Enter Purchase Os' id ='Purchaseos" + incrementdesk + "'> </td>"
+                + "<td> <select class='form-control empty select-sm stockstatus' data-plugin='select2' id ='StockStatus" + incrementdesk + "'>" + htmStockStatus + "</select></td>"
+                + " <td style ='display:none'><input type='hidden' class='form-control inputhiddenitemcode' value='" + deskitemcode + "'/> </td>"
+
+                 + " <td style ='display:none'><input type='hidden' class='form-control hdnmajorcat' value='" + majorcat + "'/> </td>"
+                 + " <td style ='display:none'><input type='hidden' class='form-control hdnminorcat' value='" + minorcat + "'/> </td>"
+                 + " <td style ='display:none'><input type='hidden' class='form-control hdnSubminorcat' value='" + subminorcategory + "'/> </td>"
+                 + " <td style ='display:none'><input type='hidden' class='form-control hdnlocation' value='" + location + "'/> </td>"
+
+                 + " <td style ='display:none'><input type='hidden' class='form-control hdnassettype' value='" + assettype + "'/> </td>"
+                  + " <td style ='display:none'><input type='hidden' class='form-control hdnexptype' value='" + exptype + "'/> </td>"
+                 + " <td style ='display:none'><input type='hidden' class='form-control hdntagtype' value='" + htmTaggable + "'/> </td>"
+                
+                 + "<td> <select class='form-control empty select-sm deskSubMinorCat' data-plugin='select2' id ='deskSubMinorCat" + incrementdesk + "'>" + SubMinCategory + "</select></td>"
+                  + "<td><input type='text' class='form-control inputremark' placeholder='Enter Remark' id ='Remark" + incrementdesk + "'> </td>"
+                //+ "<td><button class='btn btn-sm btn-primary' id='btn_Desk_" + i + "'  data-target='#DesktopModel' data-toggle='modal' onclick='getsetValues(this.id)'> Update Other Fields </button></td></tr>";
+                 + "<td><button class='btn btn-sm btn-primary' id='btn_Desk_" + incrementdesk + "'   onclick='getsetValues(this.id)'> Update Other Fields </button></td></tr>";
+                incrementdesk = incrementdesk + 1;
+            }
+            $("#tbodyDesktop").html(dektopHtml);
+        }
+    }
+    //END Desktop Section
+
+    //START Laptop Section
+    if (msg[0].dtInventoryLaptopDetailEntity.length > 0) {
+
+        for (j = 0; j <= msg[0].dtInventoryLaptopDetailEntity.length - 1 ; j++) {
+            //var dsktopCount, laptopCount, serverCount, telecomCount, networkCount;
+
+
+            //START Clear Count
+            // $('#dsktopCount').html(''); ('#serverCount').html(''); ('#telecomCount').html(''); ('#networkCount').html('');
+            //END Clear Count
+            laptopCount = $('#laptopCount');
+
+            laptopCount.html('');
+            laptopCountno = laptopCountno + (msg[0].dtInventoryLaptopDetailEntity[j].QUANTITY <= 0 ? 0 : msg[0].dtInventoryLaptopDetailEntity[j].QUANTITY);
+            laptopCount.html(laptopCountno);
+
+            var laptopitemcode = msg[0].dtInventoryLaptopDetailEntity[j].ItemCode;
+
+            var htmTaggable = msg[0].dtInventoryLaptopDetailEntity[j].TAG_TYPE;
+            var htmAllocationTypeLaptopID = msg[0].dtInventoryLaptopDetailEntity[j].AllocationTypeLaptopID;
+            var htmStockStatusLaptopID = msg[0].dtInventoryLaptopDetailEntity[j].StockStatusLaptopID;
+            
+      
+            var majorcat, minorcat, subminorcategory, location, assettype, exptype, remark;
+
+            majorcat = msg[0].dtInventoryLaptopDetailEntity[j].MAJOR_CATEGORY;
+            minorcat = msg[0].dtInventoryLaptopDetailEntity[j].MINOR_CATEGORY;
+            subminorcategory = msg[0].dtInventoryLaptopDetailEntity[j].SubMinorCategory;
+            location = msg[0].dtInventoryLaptopDetailEntity[j].Location;
+            assettype = msg[0].dtInventoryLaptopDetailEntity[j].ASSET_TYPE;
+            exptype = msg[0].dtInventoryLaptopDetailEntity[j].EXP_TYPE;
+            remark = msg[0].dtInventoryLaptopDetailEntity[j].Remark;
+            var SubMinCategory = msg[0].dtInventoryLaptopDetailEntity[j].SubMinCategory;
+            //var Remark = msg[0].dtInventoryLaptopDetailEntity[j].Remark;
+            for (i = 0; i <= msg[0].dtInventoryLaptopDetailEntity[j].QUANTITY - 1 ; i++) {
+                laptopHtml = laptopHtml + " <tr> "
+                + "<td><button type='button' class='btn btn-icon btn-dark btn-round btn-sm btn-expand_" + incrementlaptop + " le' id='btnLaptopdescription_" + incrementlaptop + "' onclick='getLaptopDescription(this.id)' title='Expand'><i class='fa fa-plus-circle fa-lg'></i></button> <button type='button' class='btn btn-icon btn-dark btn-round btn-sm btn-collapse_" + incrementlaptop + " lc' id='btnLaptopdescription_" + incrementlaptop + "' onclick='getLaptopDescription(this.id)' style='display: none' title='Collapse'><i class='fa fa-minus-circle fa-lg'></i></button>"
+                + "<div class='laptopdatacntr' id='divLaptop_" + incrementlaptop + "' style='display: none'> <div><span>Major Category:</span>" + majorcat + " </div><div><span>Minor Category:</span>" + minorcat + "</div><div><span>Sub-minor Category:</span>" + subminorcategory + "</div><div><span>Location:</span>" + location + "</div><div><span>Asset Type:</span>" + assettype + "</div><div><span>OPEX / CAPEX:</span>" + exptype + "</div><div><span>Location:</span>" + remark + "</div><div><span>Taggable Type:</span>" + htmTaggable + "</div></div> </td>"
+                + "<td><input type='text' class='form-control inputtag' placeholder='Enter Tag Number' maxlength='14' id ='TagNumber" + incrementlaptop + "'> </td> "
+                + " <td><input type='text' class='form-control inputser' placeholder='Enter Serial Number' maxlength='50' id ='SerialNumber" + incrementlaptop + "'> </td>"
+                + "<td><input type='text' class='form-control inputdateofacquisition calendar' data-plugin='datepicker'  id ='DateOfAcquisition" + incrementlaptop + "'> </td>"
+                + "<td><input type='text' class='form-control inputmake' placeholder='Enter Make' maxlength='500' id ='Make" + incrementlaptop + "'> </td>"
+                + "<td><input type='text' class='form-control inputmodel' placeholder='Enter Model' maxlength='500' id ='Model" + incrementlaptop + "'> </td>"
+                + "<td><input type='text' class='form-control inputlaplocation' placeholder='Enter Location' maxlength='500' id ='lapLocation" + incrementlaptop + "'> </td> "
+                 + "<td> <select class='form-control empty select-sm allocationtypelaptop' data-plugin='select2' id ='AllocationTypeLaptopID" + incrementdesk + "'>" + htmAllocationTypeLaptopID + "</select></td>"
+                 + "<td> <select class='form-control empty select-sm stockstatuslaptop' data-plugin='select2' id ='StockStatusLaptopID" + incrementdesk + "'>" + htmStockStatusLaptopID + "</select></td>"
+                + " <td><input type='text' class='form-control inputempid' placeholder='Enter Employee ID' id ='EmpID" + incrementlaptop + "'> </td> "
+                + "<td><input type='text' class='form-control inputempname' placeholder='Enter Employee Name' id ='EmpName" + incrementlaptop + "'> </td>"
+                + "<td><input type='text' class='form-control inputbadgeid' placeholder='Enter Badge ID' id ='BadgeID" + incrementlaptop + "'> </td>"
+                //+ "<td><input type='text' class='form-control inputissuedate calendar' data-plugin='datepicker'   id ='IssueDate" + incrementlaptop + "'> </td>"
+                + "<td><input type='text' class='form-control inputissuedate calendar' data-plugin='datepicker'  id ='IssueDate" + incrementlaptop + "'> </td>"
+                + "<td><input type='text' class='form-control inputexpectedretndate calendar' data-plugin='datepicker'  id ='ExptRetnDate" + incrementlaptop + "'> </td>"
+              //  + "<td><input type='radio' class='form-control inputisreturnyes' value='Yes'> <input type='radio' class='form-control inputisreturnno' value='No'> No</td>"
+                + "<td><input type='checkbox' class='inputisreturnyes'> </td>"
+                + " <td  style ='display:none'><input type='hidden' class='form-control inputhiddenitemcode' value='" + laptopitemcode + "'/> </td>"
+                + " <td style ='display:none'><input type='hidden' class='form-control hdnmajorcat' value='" + majorcat + "'/> </td>"
+                + " <td style ='display:none'><input type='hidden' class='form-control hdnminorcat' value='" + minorcat + "'/> </td>"
+                + " <td style ='display:none'><input type='hidden' class='form-control hdnSubminorcat' value='" + subminorcategory + "'/> </td>"
+                + " <td style ='display:none'><input type='hidden' class='form-control hdnlocation' value='" + location + "'/> </td>"
+                + " <td style ='display:none'><input type='hidden' class='form-control hdnassettype' value='" + assettype + "'/> </td>"
+                + " <td style ='display:none'><input type='hidden' class='form-control hdnexptype' value='" + exptype + "'/> </td>"
+                + " <td style ='display:none'><input type='hidden' class='form-control hdntagtype' value='" + htmTaggable + "'/> </td>"
+                + "<td> <select class='form-control empty select-sm lapSubMinorCat' data-plugin='select2' id ='lapSubMinorCat" + incrementlaptop + "'>" + SubMinCategory + "</select></td>"
+                 + "<td><input type='text' class='form-control inputremark' placeholder='Enter Remark' id ='Remark" + incrementlaptop + "'> </td>"
+                  + "<td><button class='btn btn-sm btn-primary' id='btn_Lap_" + incrementdesk + "'   onclick='getsetValuesForLaptop(this.id)'> Update Other Fields </button></td></tr>";
+                + "</tr>";
+                incrementlaptop = incrementlaptop + 1;
+            }
+          //  laptopHtml = laptopHtml + '<script src="<%=Page.ResolveUrl("~/Content/assets/vendor/bootstrap-datepicker/bootstrap-datepicker.js") %>"></script>'
+            $("#tbodyLaptop").html(laptopHtml);
+
+           // var $input = $('<input class="time-input" />').appendTo('#myForm');
+            $(".calendar").datepicker({
+                autoclose: true
+            });
+
+            //}
+        }
+        
+    }
+    //END Laptop Section
+
+
+    //START Server START
+    if (msg[0].dtInventoryServerDetailEntity.length > 0) {
+        serverCount = $('#serverCount');
+
+        for (j = 0; j <= msg[0].dtInventoryServerDetailEntity.length - 1 ; j++) {
+            //  var dsktopCount, laptopCount, serverCount, telecomCount, networkCount;
+
+            //START Clear Count
+            // $('#dsktopCount').html(''); ('#laptopCount').html(''); ('#telecomCount').html(''); ('#networkCount').html('');
+            //END Clear Count
+
+            serverCount.html('');
+            serverCountno = serverCountno + (msg[0].dtInventoryServerDetailEntity[j].QUANTITY <= 0 ? 0 : msg[0].dtInventoryServerDetailEntity[j].QUANTITY);
+            serverCount.html(serverCountno);
+
+            var Status = msg[0].dtInventoryServerDetailEntity[j].ServerStatusDrp;
+            var serveritemcode = msg[0].dtInventoryServerDetailEntity[j].ItemCode;
+
+            var htmTaggable = msg[0].dtInventoryServerDetailEntity[j].TAG_TYPE;
+
+            var majorcat, minorcat, subminorcategory, location, assettype, exptype,remark;
+            majorcat = msg[0].dtInventoryServerDetailEntity[j].MAJOR_CATEGORY;
+            minorcat = msg[0].dtInventoryServerDetailEntity[j].MINOR_CATEGORY;
+            subminorcategory = msg[0].dtInventoryServerDetailEntity[j].SubMinorCategory;
+            location = msg[0].dtInventoryServerDetailEntity[j].Location;
+
+            assettype = msg[0].dtInventoryServerDetailEntity[j].ASSET_TYPE;
+            exptype = msg[0].dtInventoryServerDetailEntity[j].EXP_TYPE;
+            remark = msg[0].dtInventoryServerDetailEntity[j].Remark;
+            var SubMinCategory = msg[0].dtInventoryServerDetailEntity[j].SubMinCategory;
+            for (i = 0; i <= msg[0].dtInventoryServerDetailEntity[j].QUANTITY - 1 ; i++) {
+                serverHtml = serverHtml + " <tr> "
+                + "<td><button type='button' class='btn btn-icon btn-dark btn-round btn-sm btn-expand_" + incrementserver + " se' id='btnServerdescription_" + incrementserver + "' onclick='getServerDescription(this.id)' title='Expand'><i class='fa fa-plus-circle fa-lg'></i></button> <button type='button' class='btn btn-icon btn-dark btn-round btn-sm btn-collapse_" + incrementserver + " sc' id='btnServerdescription_" + incrementserver + "' onclick='getServerDescription(this.id)' style='display: none' title='Collapse'><i class='fa fa-minus-circle fa-lg'></i></button>"
+                + "<div class='serverdatacntr' id='divServer_" + incrementserver + "' style='display: none'> <div><span>Major Category:</span>" + majorcat + " </div><div><span>Minor Category:</span>" + minorcat + "</div><div><span>Sub-minor Category:</span>" + subminorcategory + "</div><div><span>Location:</span>" + location + "</div><div><span>Asset Type:</span>" + assettype + "</div><div><span>OPEX / CAPEX:</span>" + exptype + "</div><div><span>Taggable Type:</span>" + htmTaggable + "</div></div> </td>"
+                + "<td><input type='text' class='form-control inputtag' placeholder='Enter Tag Number' maxlength='14' id ='TagNumber" + incrementserver + "'> </td> "
+                + "<td><input type='text' class='form-control inputser' placeholder='Enter Serial Number' maxlength='50' id ='SerialNumber" + incrementserver + "'> </td>"
+                + "<td><input type='text' class='form-control inputservlocation' placeholder='Enter Location' maxlength='500' id ='servLocation" + incrementserver + "'> </td> "
+                + "<td><input type='text' class='form-control inputacqdate calendar' data-plugin='datepicker'   id ='AcqDate" + incrementserver + "'> </td>"
+                + "<td><input type='text' class='form-control inputassetno' placeholder='Enter Asset No' maxlength='50' id ='AssetNo" + incrementserver + "'> </td> "
+                + "<td><input type='text' class='form-control inputasset' placeholder='Enter Asset' maxlength='50' id ='Asset" + incrementserver + "'> </td> "
+                + "<td><input type='text' class='form-control inputsername' placeholder='Enter Server Name' maxlength='50' id ='ServerName" + incrementserver + "'> </td>"
+                + "<td><input type='text' class='form-control inputserusage' placeholder='Enter Server Usage' maxlength='50' id ='ServerUsage" + incrementserver + "'> </td>"
+                + "<td><input type='text' class='form-control inputserdomain' placeholder='Enter Server Domain' maxlength='50' id ='ServerDomain" + incrementserver + "'> </td>"
+                + "<td><input type='text' class='form-control inputserrole' placeholder='Enter Server Role' maxlength='50' id ='ServerRole" + incrementserver + "'> </td>"
+                + "<td><input type='text' class='form-control inputenv' placeholder='Enter Enviornment' maxlength='50' id ='Enviornment" + incrementserver + "'> </td>"
+                + "<td> <select class='form-control empty select-sm Serverstatus' data-plugin='select2' id ='Status" + incrementserver + "'>" + Status + "</select></td>"
+                + "<td><input type='text' class='form-control inputproduct' placeholder='Enter Product' maxlength='50' id ='Product" + incrementserver + "'> </td>"
+                + "<td><input type='text' class='form-control inputtype' placeholder='Enter Type' maxlength='50' id ='Type" + incrementserver + "'> </td>"
+                + "<td><input type='text' class='form-control inputtypeno' placeholder='Enter Type No' maxlength='50' id ='TypeNo" + incrementserver + "'> </td>"
+                + "<td><input type='text' class='form-control inputostype' placeholder='Enter OS Type' maxlength='50' id ='OSType" + incrementserver + "'> </td>"
+                + "<td><input type='text' class='form-control inputos' placeholder='Enter OS' id ='OS" + incrementserver + "'> </td>"
+                + "<td><input type='text' class='form-control inputnoofprocessor' placeholder='Enter No Of Processor' maxlength='50' id ='NoOfProcessor" + incrementserver + "'> </td>"
+
+                + " <td style ='display:none'><input type='hidden' class='form-control inputhiddenitemcode'  value='" + serveritemcode + "'/> </td>"
+
+                 + " <td style ='display:none'><input type='hidden' class='form-control hdnmajorcat' value='" + majorcat + "'/> </td>"
+                 + " <td style ='display:none'><input type='hidden' class='form-control hdnminorcat' value='" + minorcat + "'/> </td>"
+                 + " <td style ='display:none'><input type='hidden' class='form-control hdnSubminorcat' value='" + subminorcategory + "'/> </td>"
+                 + " <td style ='display:none'><input type='hidden' class='form-control hdnlocation' value='" + location + "'/> </td>"
+                 + " <td style ='display:none'><input type='hidden' class='form-control hdnassettype' value='" + assettype + "'/> </td>"
+                + " <td style ='display:none'><input type='hidden' class='form-control hdnexptype' value='" + exptype + "'/> </td>"
+                + " <td style ='display:none'><input type='hidden' class='form-control hdntagtype' value='" + htmTaggable + "'/> </td>"
+     
+                + "<td> <select class='form-control empty select-sm servSubMinorCat' data-plugin='select2' id ='servSubMinorCat" + incrementserver + "'>" + SubMinCategory + "</select></td>"
+                  + "<td><input type='text' class='form-control inputremark' placeholder='Enter Remark' id ='Remark" + incrementserver + "'> </td>"
+                + "</tr>";
+                incrementserver = incrementserver + 1;
+            }
+            $("#tbodyServer").html(serverHtml);
+            $(".calendar").datepicker({
+                autoclose: true
+            });
+        }
+    }
+    //END Server START
+
+
+    //START Telecom
+    if (msg[0].dtInventoryTelecomDetailEntity.length > 0) {
+        telecomCount = $('#telecomCount');
+        for (j = 0; j <= msg[0].dtInventoryTelecomDetailEntity.length - 1 ; j++) {
+            // var dsktopCount, laptopCount, serverCount, telecomCount, networkCount;
+
+
+            //START Clear Count
+            //  $('#dsktopCount').html(''); ('#laptopCount').html(''); ('#serverCount').html(''); ('#networkCount').html('');
+            //END Clear Count
+
+            telecomCount.html('');
+            telecomCountno = telecomCountno + (msg[0].dtInventoryTelecomDetailEntity[j].QUANTITY <= 0 ? 0 : msg[0].dtInventoryTelecomDetailEntity[j].QUANTITY);
+            telecomCount.html(telecomCountno);
+
+            // var ASSET_TYPE = msg[0].dtInventoryTelecomDetailEntity[j].ASSET_TYPE;
+            var MakeTelDrp = msg[0].dtInventoryTelecomDetailEntity[j].MakeTelDrp;
+            var ModelTelDrp = msg[0].dtInventoryTelecomDetailEntity[j].ModelTelDrp;
+            var StockStatusTelDrp = msg[0].dtInventoryTelecomDetailEntity[j].StockStatusTelDrp;
+            var DevicelifeTelDrp = msg[0].dtInventoryTelecomDetailEntity[j].DevicelifeTelDrp;
+            var telecomitemcode = msg[0].dtInventoryTelecomDetailEntity[j].ItemCode;
+
+            var htmTaggable = msg[0].dtInventoryTelecomDetailEntity[j].TAG_TYPE;
+
+            var majorcat, minorcat, subminorcategory, location, assettype, exptype,remark;
+            majorcat = msg[0].dtInventoryTelecomDetailEntity[j].MAJOR_CATEGORY;
+            minorcat = msg[0].dtInventoryTelecomDetailEntity[j].MINOR_CATEGORY;
+            subminorcategory = msg[0].dtInventoryTelecomDetailEntity[j].SubMinorCategory;
+            location = msg[0].dtInventoryTelecomDetailEntity[j].Location;
+            assettype = msg[0].dtInventoryTelecomDetailEntity[j].ASSET_TYPE;
+            exptype = msg[0].dtInventoryTelecomDetailEntity[j].EXP_TYPE;
+            remark = msg[0].dtInventoryTelecomDetailEntity[j].Remark;
+            var SubMinCategory = msg[0].dtInventoryTelecomDetailEntity[j].SubMinCategory;
+            for (i = 0; i <= msg[0].dtInventoryTelecomDetailEntity[j].QUANTITY - 1 ; i++) {
+                telecomHtml = telecomHtml + " <tr> "
+                + "<td><button type='button' class='btn btn-icon btn-dark btn-round btn-sm btn-expand_" + incrementtelecom + " te' id='btnTelecomdescription_" + incrementtelecom + "' onclick='getTelecomDescription(this.id)' title='Expand'><i class='fa fa-plus-circle fa-lg'></i></button> <button type='button' class='btn btn-icon btn-dark btn-round btn-sm btn-collapse_" + incrementtelecom + " tc' id='btnTelecomdescription_" + incrementtelecom + "' onclick='getTelecomDescription(this.id)' style='display: none' title='Collapse'><i class='fa fa-minus-circle fa-lg'></i></button>"
+                + "<div class='telecomdatacntr' id='divTelecom_" + incrementtelecom + "' style='display: none'> <div><span>Major Category:</span>" + majorcat + " </div><div><span>Minor Category:</span>" + minorcat + "</div><div><span>Sub-minor Category:</span>" + subminorcategory + "</div><div><span>Location:</span>" + location + "</div><div><span>Asset Type:</span>" + assettype + "</div><div><span>OPEX / CAPEX:</span>" + exptype + "</div><div><span>Taggable Type:</span>" + htmTaggable + "</div></div> </td>"
+                + "<td><input type='text' class='form-control inputtag' placeholder='Enter Tag Number' maxlength='14' id ='TagNumber" + incrementtelecom + "'> </td> "
+                + " <td><input type='text' class='form-control inputser' placeholder='Enter Serial Number' maxlength='50' id ='SerialNumber" + incrementtelecom + "'> </td>"
+                + "<td> <select class='form-control empty select-sm make' data-plugin='select2' id ='Make" + incrementtelecom + "'>" + MakeTelDrp + "</select></td> "
+                + "<td> <select class='form-control empty select-sm model' data-plugin='select2' id ='Model" + incrementtelecom + "'>" + ModelTelDrp + "</select></td> "
+                + "<td><input type='text' class='form-control inputtellocation' placeholder='Enter Location' maxlength='500' id ='telLocation" + incrementtelecom + "'> </td> "
+               // + " <td> <select class='form-control empty select-sm' data-plugin='select2' id ='AssetType" + i + "'>" + ASSET_TYPE + "</select></td> "
+                + "<td><input type='text' class='form-control inputhostname' placeholder='Enter Host Name' maxlength='50' id ='HostName" + incrementtelecom + "'> </td>"
+
+                + "<td> <select class='form-control empty select-sm stock' data-plugin='select2' id ='StockStatus" + incrementtelecom + "'>" + StockStatusTelDrp + "</select></td> "
+                + "<td> <select class='form-control empty select-sm devlife' data-plugin='select2' id ='DeviceLife" + incrementtelecom + "'>" + DevicelifeTelDrp + "</select></td> "
+                //+ "<td><input type='text' class='form-control inputremark'  id ='Remark" + i + "'> </td>"
+                 + " <td style ='display:none'><input type='hidden' class='form-control inputhiddenitemcode'  value='" + telecomitemcode + "'/> </td>"
+                 + " <td style ='display:none'><input type='hidden' class='form-control hdnmajorcat' value='" + majorcat + "'/> </td>"
+                 + " <td style ='display:none'><input type='hidden' class='form-control hdnminorcat' value='" + minorcat + "'/> </td>"
+                 + " <td style ='display:none'><input type='hidden' class='form-control hdnSubminorcat' value='" + subminorcategory + "'/> </td>"
+                 + " <td style ='display:none'><input type='hidden' class='form-control hdnlocation' value='" + location + "'/> </td>"
+                 + " <td style ='display:none'><input type='hidden' class='form-control hdnassettype' value='" + assettype + "'/> </td>"
+                + " <td style ='display:none'><input type='hidden' class='form-control hdnexptype' value='" + exptype + "'/> </td>"
+                + " <td style ='display:none'><input type='hidden' class='form-control hdntagtype' value='" + htmTaggable + "'/> </td>"
+                
+                + "<td> <select class='form-control empty select-sm telSubMinorCat' data-plugin='select2' id ='telSubMinorCat" + incrementtelecom + "'>" + SubMinCategory + "</select></td>"
+                 + "<td><input type='text' class='form-control inputremark' placeholder='Enter Remark' id ='Remark" + incrementtelecom + "'> </td>"
+                + "</tr>";
+                incrementtelecom = incrementtelecom + 1;
+            }
+            $("#tbodyTelecom").html(telecomHtml);
+            $(".calendar").datepicker({
+                autoclose: true
+            });
+        }
+    }
+    //END Telecom
+
+
+    //START Network
+    if (msg[0].dtInventoryNetworkDetailEntity.length > 0) {
+        networkCount = $('#networkCount');
+        for (j = 0; j <= msg[0].dtInventoryNetworkDetailEntity.length - 1 ; j++) {
+            // var dsktopCount, laptopCount, serverCount, telecomCount, networkCount;
+            //START Clear Count
+            // $('#dsktopCount').html(''); ('#laptopCount').html(''); ('#serverCount').html(''); ('#telecomCount').html('');
+            //END Clear Count
+
+            networkCount.html('');
+            networkCountno = networkCountno + (msg[0].dtInventoryNetworkDetailEntity[j].QUANTITY <= 0 ? 0 : msg[0].dtInventoryNetworkDetailEntity[j].QUANTITY);
+            networkCount.html(networkCountno);
+
+            var AssetTypeNetworkDrp = msg[0].dtInventoryNetworkDetailEntity[j].AssetTypeNetworkDrp;
+            var MakeNetworkDrp = msg[0].dtInventoryNetworkDetailEntity[j].MakeNetworkDrp;
+            // var ModelSizeNetworkDrp = msg[0].dtInventoryNetworkDetailEntity[0].ModelSizeNetworkDrp;
+            var SharedDedicatedNwDrp = msg[0].dtInventoryNetworkDetailEntity[j].SharedDedicatedNwDrp;
+            var StockstatusNwDrp = msg[0].dtInventoryNetworkDetailEntity[j].StockstatusNwDrp;
+            var DeviceSupportNwDrp = msg[0].dtInventoryNetworkDetailEntity[j].DeviceSupportNwDrp;
+            var EndoflifeofdeviceNwDrp = msg[0].dtInventoryNetworkDetailEntity[j].EndoflifeofdeviceNwDrp;
+            var htmTaggable = msg[0].dtInventoryNetworkDetailEntity[j].TAG_TYPE;
+
+            var networkitemcode = msg[0].dtInventoryNetworkDetailEntity[j].ItemCode;
+            var majorcat, minorcat, subminorcategory, location, assettype, exptype,remark;
+            majorcat = msg[0].dtInventoryNetworkDetailEntity[j].MAJOR_CATEGORY;
+            minorcat = msg[0].dtInventoryNetworkDetailEntity[j].MINOR_CATEGORY;
+            subminorcategory = msg[0].dtInventoryNetworkDetailEntity[j].SubMinorCategory;
+            location = msg[0].dtInventoryNetworkDetailEntity[j].Location;
+
+            assettype = msg[0].dtInventoryNetworkDetailEntity[j].ASSET_TYPE;
+            exptype = msg[0].dtInventoryNetworkDetailEntity[j].EXP_TYPE;
+            remark = msg[0].dtInventoryNetworkDetailEntity[j].Remark;
+            var SubMinCategory = msg[0].dtInventoryNetworkDetailEntity[j].SubMinCategory;
+
+            for (i = 0; i <= msg[0].dtInventoryNetworkDetailEntity[j].QUANTITY - 1 ; i++) {
+                networkHtml = networkHtml + " <tr> "
+            + "<td><button type='button' class='btn btn-icon btn-dark btn-round btn-sm btn-expand_" + incrementnetwork + " ne' id='btnNetworkdescription_" + incrementnetwork + "' onclick='getNetworkDescription(this.id)' title='Expand'><i class='fa fa-plus-circle fa-lg'></i></button> <button type='button' class='btn btn-icon btn-dark btn-round btn-sm btn-collapse_" + incrementnetwork + " nc' id='btnNetworkdescription_" + incrementnetwork + "' onclick='getNetworkDescription(this.id)' style='display: none' title='Collapse'><i class='fa fa-minus-circle fa-lg'></i></button>"
+            + "<div class='netwrkdatacntr' id='divNetwork_" + incrementnetwork + "' style='display: none'> <div><span>Major Category:</span>" + majorcat + " </div><div><span>Minor Category:</span>" + minorcat + "</div><div><span>Sub-minor Category:</span>" + subminorcategory + "</div><div><span>Location:</span>" + location + "</div><div><span>Asset Type:</span>" + assettype + "</div><div><span>OPEX / CAPEX:</span>" + exptype + "</div><div><span>Taggable Type:</span>" + htmTaggable + "</div></div> </td>"
+            + "<td><input type='text' class='form-control inputtag' placeholder='Enter Tag Number' maxlength='14' id ='TagNumber" + incrementnetwork + "'> </td> "
+            + " <td><input type='text' class='form-control inputser' placeholder='Enter Serial Number' maxlength='50' id ='SerialNumber" + incrementnetwork + "'> </td>"
+            + "<td> <select class='form-control empty select-sm make' data-plugin='select2' id ='Make" + incrementnetwork + "'>" + MakeNetworkDrp + "</select></td> "
+            + " <td><input type='text' class='form-control inputmodelname' placeholder='Enter Model Name' id ='ModelName" + incrementnetwork + "'> </td>"
+            + "<td><input type='text' class='form-control inputnetwklocation' placeholder='Enter Location' maxlength='500' id ='netwkLocation" + incrementnetwork + "'> </td> "
+          //  + " <td> <select class='form-control empty select-sm' data-plugin='select2' id ='AssetType" + i + "'>" + AssetTypeNetworkDrp + "</select></td> "
+            + " <td><input type='text' class='form-control inputsitename' placeholder='Enter Site Name' id ='SiteName" + incrementnetwork + "'> </td>"
+            //+ " <td><input type='text' class='form-control inputhostname' placeholder='Enter Host Name' id ='HostName" + incrementnetwork + "'> </td>"
+            + " <td><input type='text' class='form-control inputip' placeholder='Enter IP Address' id ='IP" + incrementnetwork + "'> </td>"
+
+            + "<td> <input type='text' class='form-control inputmodelsize' placeholder='Enter Model Size' maxlength='50' id ='Model" + incrementnetwork + "'></td> "
+            + " <td><input type='text' class='form-control inputprocessname' placeholder='Enter Process Name' maxlength='50' id ='ProcessName" + incrementnetwork + "'> </td>"
+            + "<td> <select class='form-control empty select-sm shareded' data-plugin='select2' id ='SharedDedicated" + incrementnetwork + "'>" + SharedDedicatedNwDrp + "</select></td> "
+            + "<td> <select class='form-control empty select-sm stocksts' data-plugin='select2' id ='StockStatus" + incrementnetwork + "'>" + StockstatusNwDrp + "</select></td> "
+            + "<td> <select class='form-control empty select-sm devsupprt' data-plugin='select2' id ='DeviceSupport" + incrementnetwork + "'>" + DeviceSupportNwDrp + "</select></td> "
+            + " <td><input type='text' class='form-control inputdefinescope' placeholder='Enter Define Scope' maxlength='50' id ='DefineScope" + incrementnetwork + "'> </td>"
+            + "<td> <select class='form-control empty select-sm endofdev' data-plugin='select2' id ='Endlifedevice" + incrementnetwork + "'>" + EndoflifeofdeviceNwDrp + "</select></td> "
+            //+ "<td><input type='text' class='form-control inputremark'  id ='Remark" + i + "'> </td>"
+             + " <td style ='display:none'><input type='hidden' class='form-control inputhiddenitemcode' value='" + networkitemcode + "' /> </td>"
+             + " <td style ='display:none'><input type='hidden' class='form-control hdnmajorcat' value='" + majorcat + "'/> </td>"
+             + " <td style ='display:none'><input type='hidden' class='form-control hdnminorcat' value='" + minorcat + "'/> </td>"
+             + " <td style ='display:none'><input type='hidden' class='form-control hdnSubminorcat' value='" + subminorcategory + "'/> </td>"
+             + " <td style ='display:none'><input type='hidden' class='form-control hdnlocation' value='" + location + "'/> </td>"
+             + " <td style ='display:none'><input type='hidden' class='form-control hdnassettype' value='" + assettype + "'/> </td>"
+            + " <td style ='display:none'><input type='hidden' class='form-control hdnexptype' value='" + exptype + "'/> </td>"
+            + " <td style ='display:none'><input type='hidden' class='form-control hdntagtype' value='" + htmTaggable + "'/> </td>"
+           
+            + "<td> <select class='form-control empty select-sm netwkSubMinorCat' data-plugin='select2' id ='netwkSubMinorCat" + incrementnetwork + "'>" + SubMinCategory + "</select></td>"
+              + "<td><input type='text' class='form-control inputremark' placeholder='Enter Remark' id ='Remark" + incrementnetwork + "'> </td>"
+            + "</tr>";
+                incrementnetwork = incrementnetwork + 1;
+            }
+            $("#tbodyNetwork").html(networkHtml);
+            $(".calendar").datepicker({
+                autoclose: true
+            });
+        }
+    }
+    //END Network
+
+    //Start - Infra Inventory P2 Changes
+    if (msg[0].dtInventoryInfraDetailEntity.length > 0) {
+        infraCount = $('#infraCount');
+
+        for (j = 0; j <= msg[0].dtInventoryInfraDetailEntity.length - 1 ; j++) {
+
+
+            infraCount.html('');
+            infraCountno = infraCountno + (msg[0].dtInventoryInfraDetailEntity[j].QUANTITY <= 0 ? 0 : msg[0].dtInventoryInfraDetailEntity[j].QUANTITY);
+            infraCount.html(infraCountno);
+
+            var Status = msg[0].dtInventoryInfraDetailEntity[j].StockStatusInfraDrp;
+            var infraitemcode = msg[0].dtInventoryInfraDetailEntity[j].ItemCode;
+
+            var htmTaggable = msg[0].dtInventoryInfraDetailEntity[j].TAG_TYPE;
+
+            var majorcat, minorcat, subminorcategory, location, assettype, exptype,remark;
+            majorcat = msg[0].dtInventoryInfraDetailEntity[j].MAJOR_CATEGORY;
+            minorcat = msg[0].dtInventoryInfraDetailEntity[j].MINOR_CATEGORY;
+            subminorcategory = msg[0].dtInventoryInfraDetailEntity[j].SubMinorCategory;
+            location = msg[0].dtInventoryInfraDetailEntity[j].Location;
+
+            assettype = msg[0].dtInventoryInfraDetailEntity[j].ASSET_TYPE;
+            exptype = msg[0].dtInventoryInfraDetailEntity[j].EXP_TYPE;
+            remark = msg[0].dtInventoryInfraDetailEntity[j].Remark;
+            var SubMinCategory = msg[0].dtInventoryInfraDetailEntity[j].SubMinCategory;
+
+            var MakeInfraDrp, ModelInfraDrp, InventoryAssetTypeInfraDrp, HostNameInfraDrp, SharedDedicatedInfraDrp, DeviceSupportInfraDrp;
+            MakeInfraDrp = msg[0].dtInventoryInfraDetailEntity[j].MakeInfraDrp;
+            ModelInfraDrp = msg[0].dtInventoryInfraDetailEntity[j].ModelInfraDrp;
+            InventoryAssetTypeInfraDrp = msg[0].dtInventoryInfraDetailEntity[j].InventoryAssetTypeInfraDrp;
+            HostNameInfraDrp = msg[0].dtInventoryInfraDetailEntity[j].HostNameInfraDrp;
+            SharedDedicatedInfraDrp = msg[0].dtInventoryInfraDetailEntity[j].SharedDedicatedInfraDrp;
+            DeviceSupportInfraDrp = msg[0].dtInventoryInfraDetailEntity[j].DeviceSupportInfraDrp;
+
+            for (i = 0; i <= msg[0].dtInventoryInfraDetailEntity[j].QUANTITY - 1 ; i++) {
+                infraHtml = infraHtml + " <tr> "
+                + "<td><button type='button' class='btn btn-icon btn-dark btn-round btn-sm btn-expand_" + incrementinfra + " ie' id='btnInfradescription_" + incrementinfra + "' onclick='getInfraDescription(this.id)' title='Expand'><i class='fa fa-plus-circle fa-lg'></i></button> <button type='button' class='btn btn-icon btn-dark btn-round btn-sm btn-collapse_" + incrementinfra + " ic' id='btnInfradescription_" + incrementinfra + "' onclick='getInfraDescription(this.id)' style='display: none' title='Collapse'><i class='fa fa-minus-circle fa-lg'></i></button>"
+                + "<div class='infradatacntr' id='divInfra_" + incrementinfra + "' style='display: none'> <div><span>Major Category:</span>" + majorcat + " </div><div><span>Minor Category:</span>" + minorcat + "</div><div><span>Sub-minor Category:</span>" + subminorcategory + "</div><div><span>Location:</span>" + location + "</div><div><span>Asset Type:</span>" + assettype + "</div><div><span>OPEX / CAPEX:</span>" + exptype + "</div><div><span>Taggable Type:</span>" + htmTaggable + "</div></div> </td>"
+                + "<td><input type='text' class='form-control inputtaginfra' placeholder='Enter Tag Number' maxlength='14' id ='TagNumber" + incrementinfra + "'> </td> "
+                + "<td><input type='text' class='form-control inputserinfra' placeholder='Enter Serial Number' maxlength='50' id ='SerialNumber" + incrementinfra + "'> </td>"
+                + "<td> <select class='form-control empty select-sm MakeInfra' data-plugin='select2' id ='MakeInfra" + incrementinfra + "'>" + MakeInfraDrp + "</select></td>"
+                + "<td> <select class='form-control empty select-sm ModelInfra' data-plugin='select2' id ='ModelInfra" + incrementinfra + "'>" + ModelInfraDrp + "</select></td>"
+                + "<td><input type='text' class='form-control inputinfralocation' placeholder='Enter Location' maxlength='500' id ='infralocation" + incrementinfra + "'> </td> "
+                + "<td><input type='text' class='form-control inputsitename' placeholder='Enter Site Name' maxlength='100' id ='SiteName" + incrementinfra + "'> </td> "
+                + "<td> <select class='form-control empty select-sm InventoryAssetTypeInfra' data-plugin='select2' id ='InventoryAssetTypeInfra" + incrementinfra + "'>" + InventoryAssetTypeInfraDrp + "</select></td>"
+                + "<td> <select class='form-control empty select-sm HostNameInfra' data-plugin='select2' id ='HostNameInfra" + incrementinfra + "'>" + HostNameInfraDrp + "</select></td>"
+                + "<td><input type='text' class='form-control inputprocessname' placeholder='Enter Process Name' maxlength='100' id ='ProcessName" + incrementinfra + "'> </td> "
+                + "<td><input type='text' class='form-control inputipaddressinfra' placeholder='Enter IP Address' maxlength='50' id ='IPAddress" + incrementinfra + "'> </td>"
+                + "<td> <select class='form-control empty select-sm SharedDedicatedInfra' data-plugin='select2' id ='SharedDedicatedInfra" + incrementinfra + "'>" + SharedDedicatedInfraDrp + "</select></td>"
+                + "<td><input type='text' class='form-control inputdefinescopeinfra' placeholder='Enter Define Scope' maxlength='50' id ='DefineScope" + incrementinfra + "'> </td>"
+                + "<td> <select class='form-control empty select-sm devicesupportinfra' data-plugin='select2' id ='devicesupportinfra" + incrementinfra + "'>" + DeviceSupportInfraDrp + "</select></td>"
+                + "<td> <select class='form-control empty select-sm stockstatusinfra' data-plugin='select2' id ='stockstatusinfra" + incrementinfra + "'>" + Status + "</select></td>"
+
+                + " <td style ='display:none'><input type='hidden' class='form-control inputhiddenitemcode'  value='" + infraitemcode + "'/> </td>"
+                + " <td style ='display:none'><input type='hidden' class='form-control hdnmajorcat' value='" + majorcat + "'/> </td>"
+                + " <td style ='display:none'><input type='hidden' class='form-control hdnminorcat' value='" + minorcat + "'/> </td>"
+                + " <td style ='display:none'><input type='hidden' class='form-control hdnSubminorcat' value='" + subminorcategory + "'/> </td>"
+                + " <td style ='display:none'><input type='hidden' class='form-control hdnlocation' value='" + location + "'/> </td>"
+                + " <td style ='display:none'><input type='hidden' class='form-control hdnassettype' value='" + assettype + "'/> </td>"
+                + " <td style ='display:none'><input type='hidden' class='form-control hdnexptype' value='" + exptype + "'/> </td>"
+                + " <td style ='display:none'><input type='hidden' class='form-control hdntagtype' value='" + htmTaggable + "'/> </td>"
+
+                + "<td> <select class='form-control empty select-sm infraSubMinorCat' data-plugin='select2' id ='infravSubMinorCat" + incrementinfra + "'>" + SubMinCategory + "</select></td>"
+                + "<td><input type='text' class='form-control inputremark' placeholder='Enter Remark' id ='Remark" + incrementinfra + "'> </td>"
+                + "</tr>";
+                incrementinfra  = incrementinfra  + 1;
+            }
+            $("#tbodyInfra").html(infraHtml);
+            $(".calendar").datepicker({
+                autoclose: true
+            });
+        }
+    }
+    //End - Infra Inventory P2 Changes
+}
+
+function getsetValues(val) { // poup inside button
+    //alert(val);
+    //var callbacks = $.Callbacks();
+    //callbacks.add(GetSharedDedicate);
+    $("#sharedDedicate option").remove();
+    GetSharedDedicate();
+    // GetStockStatus();
+    $('#hdnDeskBtnID').val('');
+    $('#hdnDeskBtnID').val(val);
+    $('#hdnLapBtnID').val('');
+    $('#hdnLapBtnID').val(val);
+}
+function getsetValuesForLaptop(val) { // poup inside button
+  
+    GetSharedDedicate();
+    
+    $('#hdnLapBtnID').val('');
+    $('#hdnLapBtnID').val(val);
+}
+
+
+function GetSharedDedicate() {
+    var ob = { ParameterDescr: "SharedDedicatedDesktop" };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/GetParameterdesc';
+    params['contentType'] = "application/json";
+    params['data'] = ob;
+    params['successCallbackFunction'] = GetSharedDedicateSuccess;
+    doAjax(params);
+}
+
+
+function GetSharedDedicateSuccess(msg) {
+    $.each(msg, function (index, item) {
+        $("#sharedDedicate").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+    $('#DesktopModel').modal();
+}
+
+
+//function GetStockStatus() {
+//    var ob = { ParameterDescr: "stockstatus" };
+//    var params = $.extend({}, doAjax_params_default);
+//    params['url'] = 'ViewInventory/GetParameterdesc';
+//    params['contentType'] = "application/json";
+//    params['data'] = ob;
+//    params['successCallbackFunction'] = GetStockStatusSuccess;
+//    doAjax(params);
+//}
+
+function GetStockStatusSuccess(msg) {
+    $.each(msg, function (index, item) {
+        $("#lstStockStatus").append(
+        $('<option></option>').val(item.ParameterValue).html(item.ParameterValue));
+    });
+}
+
+//Save Desktop Inventory details with Model pop up filed if any.
+$("#desktopModalSave").on("click", function () {
+    if ($("#hdnPonumber").val() == '0' || $("#hdnPonumber").val() == '') {
+        toastrStateConfig();
+        toastr['error']("Please select PO Number");
+        return false;
+    }
+    else if ($("#hdnPonumber").val() == '0' && $('#drpgrnnumber :selected').text() == '') {
+        toastrStateConfig();
+        toastr['error']("PO Number and GRN Number are mandatory");
+        return false;
+    }
+    else if ($("#hdnPonumber").val() != '0' && $('#drpgrnnumber :selected').text() == '') {
+        toastrStateConfig();
+        toastr['error']("Please select GRN Number");
+        return false;
+    }
+    else {
+
+        var hdnVal = $('#hdnDeskBtnID').val();
+        var desktopArray = [];
+        var laptopArray = [];
+        var networkArray = [];
+        var serverArray = [];
+        var telecomArray = [];
+        //Start - Infra Inventory P2 Changes
+        var infraArray = [];
+        //End - Infra Inventory P2 Changes
+        var $row = $('#' + hdnVal).closest("tr");
+
+
+        /*
+        
+            var tagNo = $.trim($row.find('td .inputtag').val());
+            var serNo = $.trim($row.find('td .inputser').val());
+            var WarrantyStart = $.trim($row.find('td .inputWarStart').val());
+            var WarrantyEnd = $.trim($row.find('td .inputWarEnd').val());
+            var Processor = $.trim($row.find('td .inputProcessor').val());
+            var allocationType = 'Primary Desktop';
+        
+            // alert('tagNo : ' + tagNo + ' serNo : ' + serNo + ' WarrantyStart : ' + WarrantyStart + ' WarrantyEnd : ' + WarrantyEnd + ' Processor : ' + Processor + ' allocationType :' + allocationType)
+        
+            //alert($.trim($('#txtPonumber').val()));
+            //alert($.trim($('#drpgrnnumber :selected').text()));
+        
+            var InventoryDesktop = {
+        
+        
+                'DualHostName': $.trim($('#txtDualHostName').val()),
+                'DeskID': $.trim($('#txtDeskID').val()),
+                'IPAddress': $.trim($('#txtIPAddress').val()),
+                'Make': 'ACER', //Select
+                'ModelSize': $.trim($('#txtModelSize').val()),
+                'Processor': Processor,
+                'RAM': $.trim($('#txtRAM').val()),
+                'HardDisk': $.trim($('#txtHardDisk').val()),
+                'DomainName': $.trim($('#txtDomainName').val()),
+                'SharedDedicated': $.trim($('#txtSharedDedicated').val()),
+                'project': $.trim($('#txtproject').val()),
+                'Location1': $.trim($('#txtLocation1').val()),
+                'wing': $.trim($('#txtwing').val()),
+                'InstalledOperatingSystem': $.trim($('#txtInstalledOperatingSystem').val()),
+                'PurchasedOS': $.trim($('#txtPurchasedOS').val()),
+                'MSOffice': $.trim($('#txtMSOffice').val()),
+                'OCSClient': $.trim($('#txtOCSClient').val()),
+                'AcrobatReader': $.trim($('#txtAcrobatReader').val()),
+                'Winzip': $.trim($('#txtWinzip').val()),
+                'Antivirus': $.trim($('#txtAntivirus').val()),
+                'OtherSoftware': $.trim($('#txtOtherSoftware').val()),
+                'WarrantyStart': WarrantyStart,
+                'WarrantyEnd': WarrantyEnd,
+                'AgeSpend': $.trim($('#txtAgeSpend').val()),
+                'PhysicalVerification': '',
+                'StockStatus': 'Scrap Assets',//Select
+                'bond': $.trim($('#txtbond').val()),
+                'Hostname': $.trim($('#txtHostname').val()),
+        
+                //'TAGNumber': tagNo,
+                'SerialNumber': serNo,
+                //'TaggableTypeID': 1,//'Taggable',
+                'AssetTypeID': 1,//'Primary Desktop',
+                'Model': 'ACER01'
+            }
+            */
+
+
+        var PoNumber = $.trim($("#hdnPonumber").val()),//$.trim($('#txtPonumber').val()),
+        PoId = '',
+        PoDate = $('#hdnpodate').val(),//Added PO Date
+        GRNNumber = $.trim($('#drpgrnnumber :selected').text()),
+        GRNDate = $('#hdngrndate').val(),
+        ItemCode = $.trim($row.find('td .inputhiddenitemcode').val()),
+        TAGCount = '',
+        MajorCategory = $.trim($row.find('td .hdnmajorcat').val()),//Pick Redable value
+        MinorCategory = $.trim($row.find('td .hdnminorcat').val()),//Pick Redable value
+        MinorSubCategory = $.trim($row.find('td .hdnSubminorcat').val()),//Pick Redable value
+        Description = '',
+        ManufacturerName = $.trim($('#lblmanufacturename').text()),
+        TaggableTypeID = $.trim($row.find('td .hdntagtype').val()) == 'Taggable' ? 1 : 2, //Pick Redable value
+        AssetTypeID = $.trim($row.find('td .hdnassettype').val()) == 'IT' ? 56 : 57, //Pick Redable value
+        ExpTypeID = $.trim($row.find('td .hdnexptype').val()) == 'O' ? 73 : 74,//Pick Redable value
+        DualHostName = $.trim($('#txtDualHostName').val()),
+        DeskID = $.trim($('#txtDeskID').val()),
+        IPAddress = $.trim($('#txtIPAddress').val()),
+        MakeDesktopID = $.trim($row.find('td .make option:selected').val())//1, //Need to pick value from grid row on popup
+        ModelSize = $.trim($('#txtModelSize').val()),
+        Processor = $.trim($row.find('td .inputProcessor').val()),
+        RAM = $.trim($('#txtRAM').val()),
+        HardDisk = $.trim($('#txtHardDisk').val()),
+        DomainName = $.trim($('#txtDomainName').val()),
+        SharedDedicated = $.trim($('#sharedDedicate :selected').val()), //Select
+        project = $.trim($('#txtproject').val()),
+        Location1 = $.trim($('#txtLocation1').val()),
+        wing = $.trim($('#txtwing').val()),
+        //  AssetId = $('#txtAssetId').val(),  commented by swati
+        AssetId = '',
+        InstalledOperatingSystem = $.trim($('#txtInstalledOperatingSystem').val()),
+    PurchasedOS = $.trim($row.find('td .inputPurchaseos').val()),
+    MSOffice = $("#msoffice").is(':checked') ? $("#msoffice").val() : "",//$('#msoffice input:checkbox:checked'),//Checkbox
+    OCSClient = $("#ocsclient").is(':checked') ? $("#ocsclient").val() : "",//$('#ocsclient').val(),//Checkbox
+    AcrobatReader = $("#acrobatReader").is(':checked') ? $("#acrobatReader").val() : "",//$('#acrobatReader').val(),//Checbox
+    Winzip = $("#Winzip").is(':checked') ? $("#Winzip").val() : "",//$('#Winzip').val(),//Checbox
+    Antivirus = $("#antivirus").is(':checked') ? $("#antivirus").val() : "",//$('#Antivirus').val(),//Checbox
+    OtherSoftware = $.trim($('#txtOtherSoftware').val()),
+    WarrantyStart = $.trim($('#txtWarrantyStart').val()),
+    WarrantyEnd = $.trim($('#txtWarrantyEnd').val()),
+    AgeSpend = $.trim($('#txtAgeSpend').val()),
+    PhysicalVerification = $.trim($('#txtPhysicalVerification').val()),
+    StockStatusDesktopID = $.trim($row.find('td .stockstatus option:selected').val())//1,//Need to pick value from grid row on popup
+        bond = $.trim($('#txtbond').val()),
+        Hostname = $.trim($('#txtHostname').val()),
+        AllocationTypeID = $.trim($row.find('td .allocationtype option:selected').val()), //$.trim(this_row.find('.select-sm option:selected').text())		
+        //SystemAssetID = 0,//1, commented by swati
+         SystemAssetID = $('#txtAssetId').val(),
+        SerialNumber = $.trim($row.find('td .inputser').val()),
+        TAGNumber = $.trim($row.find('td .inputtag').val()),
+        Location = $.trim($row.find('td .hdnlocation').val()),//Pick Redable value
+        SubLocation = $.trim($row.find('td .inputdesklocation').val()),
+        SubMinorCategory = $.trim($row.find('td .deskSubMinorCat option:selected').val())
+        DateOfAcquisition = $.trim($row.find('td .dateofacquisitiondesk option:selected').val());
+        var InventoryDesktop = {
+            'PoNumber': PoNumber,
+            'PoId': PoId,
+            'PoDate': PoDate,
+            'GRNNumber': GRNNumber,
+            'GRNDate': GRNDate,
+            'ItemCode': ItemCode,
+            'TAGCount': TAGCount,
+            'MajorCategory': MajorCategory,
+            'MinorCategory': MinorCategory,
+            'MinorSubCategory': MinorSubCategory,
+            'Description': Description,
+            'ManufacturerName': ManufacturerName,
+            'TaggableTypeID': TaggableTypeID,
+            'AssetTypeID': AssetTypeID,
+            'ExpTypeID': ExpTypeID,
+            'DualHostName': DualHostName,
+            'DeskID': DeskID,
+            'IPAddress': IPAddress,
+            'MakeDesktopID': MakeDesktopID,
+            'ModelSize': ModelSize,
+            'Processor': Processor,
+            'RAM': RAM,
+            'HardDisk': HardDisk,
+            'DomainName': DomainName,
+            'SharedDedicated': SharedDedicated,
+            'project': project,
+            'Location1': Location1,
+            'wing': wing,
+            'AssetId': AssetId,
+            'InstalledOperatingSystem': InstalledOperatingSystem,
+            'PurchasedOS': PurchasedOS,
+            'MSOffice': MSOffice,
+            'OCSClient': OCSClient,
+            'AcrobatReader': AcrobatReader,
+            'Winzip': Winzip,
+            'Antivirus': Antivirus,
+            'OtherSoftware': OtherSoftware,
+            'WarrantyStart': WarrantyStart,
+            'WarrantyEnd': WarrantyEnd,
+            'AgeSpend': AgeSpend,
+            'PhysicalVerification': PhysicalVerification,
+            'StockStatusDesktopID': StockStatusDesktopID,
+            'bond': bond,
+            'Hostname': Hostname,
+            'AllocationTypeID': AllocationTypeID,
+            'SystemAssetID': SystemAssetID,
+            'SerialNumber': SerialNumber,
+            'TAGNumber': TAGNumber,
+            'Location': Location,
+            'SubLocation': SubLocation,
+            'SubMinorCategory': SubMinorCategory,
+            'DateOfAcquisition': DateOfAcquisition,
+        }
+
+
+
+        //alert(WarrantyStart);
+        //return false;
+
+        desktopArray.push(InventoryDesktop);
+
+        //TD_InventoryCommonDetail
+        var Location = '', TAGNumber = ''
+
+        //TD_Inventory
+
+        //var addInventory = { lstInventoryDesktopDetailEntity: desktopArray, PoNumber: $.trim($('#txtPonumber').val()), GRNNumber: $.trim($('#drpgrnnumber :selected').text()) };
+        var addInventory = { lstInventoryDesktopDetailEntity: desktopArray,lstInventoryLaptopDetailEntity: laptopArray, lstInventoryNetworkDetailEntity: networkArray, lstInventoryServerDetailEntity: serverArray, lstInventoryTelecomDetailEntity: telecomArray, lstInventoryInfraDetailEntity:infraArray,PoNumber: $.trim($('#txtPonumber').val()), GRNNumber: $.trim($('#drpgrnnumber :selected').text()) };
+        var params = $.extend({}, doAjax_params_default);
+        params['url'] = 'Inventory/AddInventory';
+        params['data'] = addInventory;//JSON.stringify({ 'Description': data });
+        params['contentType'] = "application/json";
+        params['successCallbackFunction'] = function ManageInventorySuccess(msg) {
+            if (msg.StatusCode == "200") {
+                toastrStateConfig();
+                toastr['success'](msg.Msg);
+                $('#DesktopModel').modal('hide');
+                bindInventoryType();
+                ClearModalPopupControl();
+
+            }
+            else {
+                toastrStateConfig();
+                toastr['error'](msg.Msg);
+            }
+        }
+        doAjax(params);
+    }
+});
+
+
+//Save Laptop Inventory details with Model pop up filed if any.
+$("#laptopModalSave").on("click", function () {
+    if ($("#hdnPonumber").val() == '0' || $("#hdnPonumber").val() == '') {
+        toastrStateConfig();
+        toastr['error']("Please select PO Number");
+        return false;
+    }
+    else if ($("#hdnPonumber").val() == '0' && $('#drpgrnnumber :selected').text() == '') {
+        toastrStateConfig();
+        toastr['error']("PO Number and GRN Number are mandatory");
+        return false;
+    }
+    else if ($("#hdnPonumber").val() != '0' && $('#drpgrnnumber :selected').text() == '') {
+        toastrStateConfig();
+        toastr['error']("Please select GRN Number");
+        return false;
+    }
+    else {
+
+        var hdnVal = $('#hdnLapBtnID').val();
+        var desktopArray = [];
+        var laptopArray = [];
+        var networkArray = [];
+        var serverArray = [];
+        var telecomArray = [];
+        //Start - Infra Inventory P2 Changes
+        var infraArray = [];
+        //End - Infra Inventory P2 Changes
+        var $row = $('#' + hdnVal).closest("tr");
+
+
+        var PoNumber = $.trim($("#hdnPonumber").val()),//$.trim($('#txtPonumber').val()),
+           PoId = '',
+           PoDate = $('#hdnpodate').val(),
+           GRNNumber = $.trim($('#drpgrnnumber :selected').text()),
+           GRNDate = $('#hdngrndate').val(),
+           ItemCode = $.trim(this_row.find('td .inputhiddenitemcode').val()),//Pick Redable value
+           TAGCount = '',
+           MajorCategory = $.trim(this_row.find('td .hdnmajorcat').val()),//Pick Redable value
+           MinorCategory = $.trim(this_row.find('td .hdnminorcat').val()),//Pick Redable value
+           MinorSubCategory = $.trim(this_row.find('td .hdnSubminorcat').val()),//Pick Redable value
+           Description = '',
+           ManufacturerName = $.trim($('#lblmanufacturename').text()),
+           TaggableTypeID = $.trim(this_row.find('td .hdntagtype').val()) == 'Taggable' ? 1 : 2,//Pick Redable value
+           AssetTypeID = $.trim(this_row.find('td .hdnassettype').val()) == 'IT' ? 56 : 57,//Pick Redable value
+           ExpTypeID = $.trim(this_row.find('td .hdnexptype').val()) == 'O' ? 73 : 74,//Pick Redable value
+           EmployeeID = $.trim(this_row.find('.inputempid').val()),
+           EmployeeName = $.trim(this_row.find('.inputempname').val()),
+           Model = $.trim(this_row.find('.inputmodel').val()),
+           BadgeID = $.trim(this_row.find('.inputbadgeid').val()),
+           IssueDate = $.trim(this_row.find('.inputissuedate').val()),
+           ExpectedReturnDate = $.trim(this_row.find('.inputexpectedretndate').val()),
+           IsReturned = $.trim(this_row.find('.inputisreturnyes').is(':checked')),//$("#msoffice").is(':checked') ? $("#msoffice").val() : "",
+           Make = $.trim(this_row.find('.inputmake').val()),
+           SerialNumber = $.trim(this_row.find('.inputser').val()),
+           TAGNumber = $.trim(this_row.find('.inputtag').val()),
+           Location = $.trim(this_row.find('td .hdnlocation').val()) //Pick Redable value,
+        SubLocation = $.trim(this_row.find('.inputlaplocation').val()),
+        SubMinorCategory = $.trim(this_row.find('.lapSubMinorCat').val()),
+        Remark = $.trim(this_row.find('.inputremark').val()),
+        RAM=$.trim($('#txtRAMLaptop')).val(),
+        Hostname = $.trim($('#txtHostNameLaptop').val()),
+        WarrantyStart = $.trim($('#txtWarrantyStartLaptop').val()),
+        WarrantyEnd = $.trim($('#txtWarrantyEndLaptop').val()),
+        StockStatusLaptopID = $.trim($row.find('td .stockstatusLaptop option:selected').val())//1,//Need to pick value from grid row on popup
+        AllocationTypeLaptopID = $.trim($row.find('td .allocationtypelaptop option:selected').val()),
+        DateOfAcquisition = $.trim($row.find('td .dateofacquisitionlap option:selected').val()),
+        PropertyCode = $.trim($('#txtPropertyCode').val());
+
+        var InventoryLaptop = {
+            'PoNumber': PoNumber,
+            'PoId': PoId,
+            'PoDate': PoDate,
+            'GRNNumber': GRNNumber,
+            'GRNDate': GRNDate,
+            'ItemCode': ItemCode,
+            'TAGCount': TAGCount,
+            'MajorCategory': MajorCategory,
+            'MinorCategory': MinorCategory,
+            'MinorSubCategory': MinorSubCategory,
+            'Description': Description,
+            'ManufacturerName': ManufacturerName,
+            'TaggableTypeID': TaggableTypeID,
+            'AssetTypeID': AssetTypeID,
+            'ExpTypeID': ExpTypeID,
+            'EmployeeID': EmployeeID,
+            'EmployeeName': EmployeeName,
+            'Model': Model,
+            'BadgeID': BadgeID,
+            'RAM':RAM,
+            'HostName': HostName,
+            'WarrantyStart': WarrantyStart,
+            'WarrantyEnd': WarrantyEnd,
+            'StockStatusLaptopID': StockStatusLaptopID,
+            'AllocationTypeLaptopID': AllocationTypeLaptopID,
+            'DateOfAcquisition': DateOfAcquisition,
+            'PropertyCode':PropertyCode,
+            'IssueDate': IssueDate,
+            'ExpectedReturnDate': ExpectedReturnDate,
+            'IsReturned': IsReturned,
+            'Make': Make,
+            'SerialNumber': SerialNumber,
+            'TAGNumber': TAGNumber,
+            'Location': Location,
+            'SubLocation': SubLocation,
+            'SubMinorCategory': SubMinorCategory,
+            
+        }
+
+        desktopArray.push(InventoryDesktop);
+
+        //TD_InventoryCommonDetail
+        var Location = '', TAGNumber = ''
+
+        //TD_Inventory
+
+        //var addInventory = { lstInventoryDesktopDetailEntity: desktopArray, PoNumber: $.trim($('#txtPonumber').val()), GRNNumber: $.trim($('#drpgrnnumber :selected').text()) };
+        var addInventory = { lstInventoryDesktopDetailEntity: desktopArray, lstInventoryLaptopDetailEntity: laptopArray, lstInventoryNetworkDetailEntity: networkArray, lstInventoryServerDetailEntity: serverArray, lstInventoryTelecomDetailEntity: telecomArray, lstInventoryInfraDetailEntity: infraArray, PoNumber: $.trim($('#txtPonumber').val()), GRNNumber: $.trim($('#drpgrnnumber :selected').text()) };
+        var params = $.extend({}, doAjax_params_default);
+        params['url'] = 'Inventory/AddInventory';
+        params['data'] = addInventory;//JSON.stringify({ 'Description': data });
+        params['contentType'] = "application/json";
+        params['successCallbackFunction'] = function ManageInventorySuccess(msg) {
+            if (msg.StatusCode == "200") {
+                toastrStateConfig();
+                toastr['success'](msg.Msg);
+                $('#LaptopModel').modal('hide');
+                bindInventoryType();
+                ClearLaptopModalPopupControl();
+
+            }
+            else {
+                toastrStateConfig();
+                toastr['error'](msg.Msg);
+            }
+        }
+        doAjax(params);
+    }
+});
+
+//Save Inventory type details
+$("#validateButton2").on("click", function () {
+    $("#validateButton2").attr("disabled", "disabled");
+    //function onSubmit() {
+    // alert('hi');
+
+    if ($("#hdnPonumber").val() == '0' || $("#hdnPonumber").val() == '') {
+        toastrStateConfig();
+        toastr['error']("Please select PO Number");
+        return false;
+    }
+    else if ($("#hdnPonumber").val() == '0' && $('#drpgrnnumber :selected').text() == '') {
+        toastrStateConfig();
+        toastr['error']("PO Number and GRN Number are mandatory");
+        return false;
+    }
+    else if ($("#hdnPonumber").val() != '0' && $('#drpgrnnumber :selected').text() == '') {
+        toastrStateConfig();
+        toastr['error']("Please select GRN Number");
+        return false;
+    }
+    else {
+        var desktopArray = [];
+        var laptopArray = [];
+        var networkArray = [];
+        var serverArray = [];
+        var telecomArray = [];
+
+        //Start - Infra Inventory P2 Changes
+        var infraArray = [];
+        //End - Infra Inventory P2 Changes
+
+        //TD_InventoryCommonDetail
+
+        $("#exampleAccordionDesktop tr:gt(0)").each(function () {
+            var this_row = $(this);
+
+            //WarrantyStart = $.trim(this_row.find('.inputWarStart').val());
+            //WarrantyEnd = $.trim(this_row.find('.inputWarEnd').val());
+            // Processor = $.trim(this_row.find('.inputProcessor').val());
+            // allocationType = $.trim(this_row.find('.select-sm option:selected').text());
+
+            var PoNumber = $.trim($("#hdnPonumber").val()),//$.trim($('#txtPonumber').val()),
+            PoId = '',
+            PoDate = $('#hdnpodate').val(),
+            GRNNumber = $.trim($('#drpgrnnumber :selected').text()),
+            GRNDate = $('#hdngrndate').val(),
+            ItemCode = $.trim(this_row.find('td .inputhiddenitemcode').val()),//Pick Redable value
+            TAGCount = '',
+            MajorCategory = $.trim(this_row.find('td .hdnmajorcat').val()), 	//Pick Redable value		
+            MinorCategory = $.trim(this_row.find('td .hdnminorcat').val()), //Pick Redable value			
+            MinorSubCategory = $.trim(this_row.find('td .hdnSubminorcat').val()), 	//Pick Redable value	
+            Description = '',
+            ManufacturerName = $.trim($('#lblmanufacturename').text()),
+            TaggableTypeID = $.trim(this_row.find('td .hdntagtype').val()) == 'Taggable' ? 1 : 2, 	//Pick Redable value		
+            AssetTypeID = $.trim(this_row.find('td .hdnassettype').val()) == 'IT' ? 56 : 57, 		//Pick Redable value	
+            ExpTypeID = $.trim(this_row.find('td .hdnexptype').val()) == 'O' ? 73 : 74, 		//Pick Redable value		
+            DualHostName = '',
+            DeskID = '',
+            IPAddress = '',
+            MakeDesktopID = $.trim(this_row.find('.make option:selected').val()),
+            ModelSize = '',
+            Processor = $.trim(this_row.find('.inputProcessor').val()),
+            RAM = '',
+            HardDisk = '',
+            DomainName = '',
+            SharedDedicated = '',
+            project = '',
+            Location1 = '',
+            wing = '',
+            AssetId = '',
+            InstalledOperatingSystem = ''
+            PurchasedOS = $.trim(this_row.find('.inputPurchaseos').val()),
+            MSOffice = '',
+            OCSClient = '',
+            AcrobatReader = '',
+            Winzip = '',
+            Antivirus = '',
+            OtherSoftware = '',
+            WarrantyStart = '',
+            WarrantyEnd = '',
+            AgeSpend = '',
+            PhysicalVerification = '',
+            StockStatusDesktopID = $.trim(this_row.find('.stockstatus option:selected').val()),
+            bond = '',
+            Hostname = '',
+            AllocationTypeID = $.trim(this_row.find('.allocationtype option:selected').val()),//1, //$.trim(this_row.find('.select-sm option:selected').text())		
+            //SystemAssetID=0, //	commented by swati		
+            SystemAssetID = '', //			
+            SerialNumber = $.trim(this_row.find('.inputser').val()),
+            TAGNumber = $.trim(this_row.find('.inputtag').val()),
+            Location = $.trim(this_row.find('td .hdnlocation').val())//Pick Redable value,
+            SubLocation = $.trim(this_row.find('.inputdesklocation').val()),
+            SubMinorCategory = $.trim(this_row.find('.deskSubMinorCat option:selected').val()),
+            Remark = $.trim(this_row.find('.inputremark').val()),
+            DateOfAcquisition = $.trim($row.find('td .dateofacquisitionlap option:selected').val());
+
+            var InventoryDesktop = {
+                'PoNumber': PoNumber,
+                'PoId': PoId,
+                'PoDate': PoDate,
+                'GRNNumber': GRNNumber,
+                'GRNDate': GRNDate,
+                'ItemCode': ItemCode,
+                'TAGCount': TAGCount,
+                'MajorCategory': MajorCategory,
+                'MinorCategory': MinorCategory,
+                'MinorSubCategory': MinorSubCategory,
+                'Description': Description,
+                'ManufacturerName': ManufacturerName,
+                'TaggableTypeID': TaggableTypeID,
+                'AssetTypeID': AssetTypeID,
+                'ExpTypeID': ExpTypeID,
+                'DualHostName': DualHostName,
+                'DeskID': DeskID,
+                'IPAddress': IPAddress,
+                'MakeDesktopID': MakeDesktopID,
+                'ModelSize': ModelSize,
+                'Processor': Processor,
+                'RAM': RAM,
+                'HardDisk': HardDisk,
+                'DomainName': DomainName,
+                'SharedDedicated': SharedDedicated,
+                'project': project,
+                'Location1': Location1,
+                'wing': wing,
+                'AssetId': AssetId,
+                'InstalledOperatingSystem': InstalledOperatingSystem,
+                'PurchasedOS': PurchasedOS,
+                'MSOffice': MSOffice,
+                'OCSClient': OCSClient,
+                'AcrobatReader': AcrobatReader,
+                'Winzip': Winzip,
+                'Antivirus': Antivirus,
+                'OtherSoftware': OtherSoftware,
+                'WarrantyStart': WarrantyStart,
+                'WarrantyEnd': WarrantyEnd,
+                'AgeSpend': AgeSpend,
+                'PhysicalVerification': PhysicalVerification,
+                'StockStatusDesktopID': StockStatusDesktopID,
+                'bond': bond,
+                'Hostname': Hostname,
+                'AllocationTypeID': AllocationTypeID,
+                'SystemAssetID': SystemAssetID,
+                'SerialNumber': SerialNumber,
+                'TAGNumber': TAGNumber,
+                'Location': Location,
+                'SubLocation': SubLocation,
+                'SubMinorCategory': SubMinorCategory,
+                'Remark':Remark,
+                'DateOfAcquisition':DateOfAcquisition,
+            }
+
+            desktopArray.push(InventoryDesktop)
+        });
+
+
+        $("#tblLaptop tr:gt(0)").each(function () {
+            var this_row = $(this);
+
+            //WarrantyStart = $.trim(this_row.find('.inputWarStart').val());
+            //WarrantyEnd = $.trim(this_row.find('.inputWarEnd').val());
+            // Processor = $.trim(this_row.find('.inputProcessor').val());
+            // allocationType = $.trim(this_row.find('.select-sm option:selected').text());
+
+            var PoNumber = $.trim($("#hdnPonumber").val()),//$.trim($('#txtPonumber').val()),
+           PoId = '',
+           PoDate = $('#hdnpodate').val(),
+           GRNNumber = $.trim($('#drpgrnnumber :selected').text()),
+           GRNDate = $('#hdngrndate').val(),
+           ItemCode = $.trim(this_row.find('td .inputhiddenitemcode').val()),//Pick Redable value
+           TAGCount = '',
+           MajorCategory = $.trim(this_row.find('td .hdnmajorcat').val()),//Pick Redable value
+           MinorCategory = $.trim(this_row.find('td .hdnminorcat').val()),//Pick Redable value
+           MinorSubCategory = $.trim(this_row.find('td .hdnSubminorcat').val()),//Pick Redable value
+           Description = '',
+           ManufacturerName = $.trim($('#lblmanufacturename').text()),
+           TaggableTypeID = $.trim(this_row.find('td .hdntagtype').val()) == 'Taggable' ? 1 : 2,//Pick Redable value
+           AssetTypeID = $.trim(this_row.find('td .hdnassettype').val()) == 'IT' ? 56 : 57,//Pick Redable value
+           ExpTypeID = $.trim(this_row.find('td .hdnexptype').val()) == 'O' ? 73 : 74,//Pick Redable value
+           EmployeeID = $.trim(this_row.find('.inputempid').val()),
+           EmployeeName = $.trim(this_row.find('.inputempname').val()),
+           Model = $.trim(this_row.find('.inputmodel').val()),
+           BadgeID = $.trim(this_row.find('.inputbadgeid').val()),
+           IssueDate = $.trim(this_row.find('.inputissuedate').val()),
+           ExpectedReturnDate = $.trim(this_row.find('.inputexpectedretndate').val()),
+           IsReturned = $.trim(this_row.find('.inputisreturnyes').is(':checked')),//$("#msoffice").is(':checked') ? $("#msoffice").val() : "",
+           Make = $.trim(this_row.find('.inputmake').val()),
+           SerialNumber = $.trim(this_row.find('.inputser').val()),
+           TAGNumber = $.trim(this_row.find('.inputtag').val()),
+           Location = $.trim(this_row.find('td .hdnlocation').val()) //Pick Redable value,
+            SubLocation = $.trim(this_row.find('.inputlaplocation').val()),
+            SubMinorCategory = $.trim(this_row.find('.lapSubMinorCat').val()),
+            Remark = $.trim(this_row.find('.inputremark').val()),
+            RAM = '',
+            Hostname ='',
+            WarrantyStart = '',
+            WarrantyEnd = '',
+            StockStatusLaptopID = $.trim($row.find('td .stockstatusLaptop option:selected').val())//1,//Need to pick value from grid row on popup
+            AllocationTypeLaptopID = $.trim($row.find('td .allocationtypelaptop option:selected').val()),
+            DateOfAcquisition = $.trim($row.find('td .dateofacquisitionlap option:selected').val()),
+            PropertyCode = '';
+            DateOfAcquisition = $.trim($row.find('td .dateofacquisitionlap option:selected').val())
+            var InventoryLaptop = {
+                'PoNumber': PoNumber,
+                'PoId': PoId,
+                'PoDate': PoDate,
+                'GRNNumber': GRNNumber,
+                'GRNDate': GRNDate,
+                'ItemCode': ItemCode,
+                'TAGCount': TAGCount,
+                'MajorCategory': MajorCategory,
+                'MinorCategory': MinorCategory,
+                'MinorSubCategory': MinorSubCategory,
+                'Description': Description,
+                'ManufacturerName': ManufacturerName,
+                'TaggableTypeID': TaggableTypeID,
+                'AssetTypeID': AssetTypeID,
+                'ExpTypeID': ExpTypeID,
+                'EmployeeID': EmployeeID,
+                'EmployeeName': EmployeeName,
+                'Model': Model,
+                'BadgeID': BadgeID,
+                'IssueDate': IssueDate,
+                'ExpectedReturnDate': ExpectedReturnDate,
+                'IsReturned': IsReturned,
+                'Make': Make,
+                'SerialNumber': SerialNumber,
+                'TAGNumber': TAGNumber,
+                'Location': Location,
+                'SubLocation': SubLocation,
+                'SubMinorCategory': SubMinorCategory,
+                'Remark':Remark,
+                'RAM': RAM,
+                'HostName': HostName,
+                'WarrantyStart': WarrantyStart,
+                'WarrantyEnd': WarrantyEnd,
+                'StockStatusLaptopID': StockStatusLaptopID,
+                'AllocationTypeLaptopID': AllocationTypeLaptopID,
+                'DateOfAcquisition': DateOfAcquisition,
+                'PropertyCode': PropertyCode,
+            }
+
+            laptopArray.push(InventoryLaptop)
+        });
+
+
+        $("#tblServer tr:gt(0)").each(function () {
+            var this_row = $(this);
+
+            var InventoryServer = {
+                'PoNumber': $.trim($("#hdnPonumber").val()),//$.trim($('#txtPonumber').val()),
+                'PoId': '',
+                'PoDate': $('#hdnpodate').val(),
+                'GRNNumber': $.trim($('#drpgrnnumber :selected').text()),
+                'GRNDate': $('#hdngrndate').val(),
+                'ItemCode': $.trim(this_row.find('td .inputhiddenitemcode').val()), //Pick Redable value
+                'TAGCount': '',
+                'MajorCategory': $.trim(this_row.find('td .hdnmajorcat').val()),//Pick Redable value
+                'MinorCategory': $.trim(this_row.find('td .hdnminorcat').val()),//Pick Redable value
+                'MinorSubCategory': $.trim(this_row.find('td .hdnSubminorcat').val()),//Pick Redable value
+                'Description': '',
+                'ManufacturerName': $.trim($('#lblmanufacturename').text()),
+                'TaggableTypeID': $.trim(this_row.find('td .hdntagtype').val()) == 'Taggable' ? 1 : 2,//Pick Redable value
+                'AssetTypeID': $.trim(this_row.find('td .hdnassettype').val()) == 'IT' ? 56 : 57,//Pick Redable value
+                'ExpTypeID': $.trim(this_row.find('td .hdnexptype').val()) == 'O' ? 73 : 74,//Pick Redable value
+                'ServerName': $.trim(this_row.find('.inputsername').val()),
+                'ServerUsage': $.trim(this_row.find('.inputserusage').val()),
+                'ServerDomain': $.trim(this_row.find('.inputserdomain').val()),
+                'ServerRole': $.trim(this_row.find('.inputserrole').val()),
+                'AcquistionDate': $.trim(this_row.find('.inputacqdate').val()),//$.trim(this_row.find('.inputacqdate').val()),
+                'Asset': $.trim(this_row.find('.inputasset').val()),
+                'AssetNo': $.trim(this_row.find('.inputassetno').val()),
+                'Environment': $.trim(this_row.find('.inputenv').val()),
+                'ServerStatusID': $.trim(this_row.find('.Serverstatus option:selected').val()),//ServerStatusID,
+                'Product': $.trim(this_row.find('.inputproduct').val()),
+                'Type': $.trim(this_row.find('.inputtype').val()),
+                'TypeNo': $.trim(this_row.find('.inputtypeno').val()),
+                'OSType': $.trim(this_row.find('.inputostype').val()),
+                'OS': $.trim(this_row.find('.inputos').val()),
+                'NoOfProcessor': $.trim(this_row.find('.inputnoofprocessor').val()),
+                'SerialNumber': $.trim(this_row.find('.inputser').val()),
+                'TAGNumber': $.trim(this_row.find('.inputtag').val()),
+                'Location': $.trim(this_row.find('td .hdnlocation').val()),//Pick Redable value
+                'SubLocation': $.trim(this_row.find('.inputservlocation').val()),
+                'SubMinorCategory': $.trim(this_row.find('.servSubMinorCat option:selected').val()),
+                'Remark':$.trim(this_row.find('.inputremark').val()),
+                'DateOfAcquisition' : $.trim($row.find('td .dateofacquisitionserv option:selected').val())
+            }
+
+            serverArray.push(InventoryServer)
+        });
+
+
+        $("#tblTelecom tr:gt(0)").each(function () {
+            var this_row = $(this);
+
+            var InventoryTelecom = {
+                'PoNumber': $.trim($("#hdnPonumber").val()),//$.trim($('#txtPonumber').val()),
+                'PoId': '',
+                'PoDate': $('#hdnpodate').val(),
+                'GRNNumber': $.trim($('#drpgrnnumber :selected').text()),
+                'GRNDate': $('#hdngrndate').val(),
+                'ItemCode': $.trim(this_row.find('td .inputhiddenitemcode').val()),//Pick Redable value
+                'TAGCount': '',
+                'MajorCategory': $.trim(this_row.find('td .hdnmajorcat').val()),//Pick Redable value
+                'MinorCategory': $.trim(this_row.find('td .hdnminorcat').val()),//Pick Redable value
+                'MinorSubCategory': $.trim(this_row.find('td .hdnSubminorcat').val()),//Pick Redable value
+                'Description': '',
+                'ManufacturerName': $.trim($('#lblmanufacturename').text()),
+                'TaggableTypeID': $.trim(this_row.find('td .hdntagtype').val()) == 'Taggable' ? 1 : 2,//Pick Redable value
+                'AssetTypeID': $.trim(this_row.find('td .hdnassettype').val()) == 'IT' ? 56 : 57,//Pick Redable value
+                'ExpTypeID': $.trim(this_row.find('td .hdnexptype').val()) == 'O' ? 73 : 74,//Pick Redable value
+                'HostName': $.trim(this_row.find('.inputhostname').val()),
+                'MakeTelecomID': $.trim(this_row.find('.make option:selected').val()),//Select
+                'ModelTelecom': $.trim(this_row.find('.model option:selected').val()),//Select,
+                'DeviceLifeTelecomID': $.trim(this_row.find('.devlife option:selected').val()),//Select,
+                'StockStatusTelecomID': $.trim(this_row.find('.stock option:selected').val()),//Select
+                'AssetTypeTelecomID': 0,//Select, // This is textbox as per fdd
+                'SerialNumber': $.trim(this_row.find('.inputser').val()),
+                'TAGNumber': $.trim(this_row.find('.inputtag').val()),
+                'Location': $.trim(this_row.find('td .hdnlocation').val()),//Pick Redable value
+                'SubLocation': $.trim(this_row.find('.inputtellocation').val()),
+                'SubMinorCategory': $.trim(this_row.find('.telSubMinorCat option:selected').val()),
+                'Remark': $.trim(this_row.find('.inputremark').val()),
+                'DateOfAcquisition': $.trim($row.find('td .dateofacquisitiontelecom option:selected').val())
+            }
+
+            telecomArray.push(InventoryTelecom)
+        });
+
+
+        $("#tblNetwork tr:gt(0)").each(function () {
+            var this_row = $(this);
+
+            var InventoryNetwork = {
+                'PoNumber': $.trim($("#hdnPonumber").val()),//$.trim($('#txtPonumber').val()),
+                'PoId': '',
+                'PoDate': $('#hdnpodate').val(),
+                'GRNNumber': $.trim($('#drpgrnnumber :selected').text()),
+                'GRNDate': $('#hdngrndate').val(),
+                'ItemCode': $.trim(this_row.find('td .inputhiddenitemcode').val()),//Pick Redable value
+                'TAGCount': '',
+                'MajorCategory': $.trim(this_row.find('td .hdnmajorcat').val()),//Pick Redable value
+                'MinorCategory': $.trim(this_row.find('td .hdnminorcat').val()),//Pick Redable value
+                'MinorSubCategory': $.trim(this_row.find('td .hdnSubminorcat').val()),//Pick Redable value
+                'Description': '',
+                'ManufacturerName': $.trim($('#lblmanufacturename').text()),
+                'TaggableTypeID': $.trim(this_row.find('td .hdntagtype').val()) == 'Taggable' ? 1 : 2,//Pick Redable value
+                'AssetTypeID': $.trim(this_row.find('td .hdnassettype').val()) == 'IT' ? 56 : 57,//Pick Redable value
+                'ExpTypeID': $.trim(this_row.find('td .hdnexptype').val()) == 'O' ? 73 : 74,//Pick Redable value
+                'MakeNetworkID': $.trim(this_row.find('.make option:selected').val()),
+                'Model': $.trim(this_row.find('.inputmodelname').val()),
+                'StockStatusNetworkID': $.trim(this_row.find('.stocksts option:selected').val()),
+                'DeviceLife': '',
+                'DefineScope': $.trim(this_row.find('.inputdefinescope').val()),
+                'EndoflifeofdeviceID': $.trim(this_row.find('.endofdev option:selected').val()),
+                'DeviceSupportID': $.trim(this_row.find('.devsupprt option:selected').val()),
+                'ModelSize': $.trim(this_row.find('.inputmodelsize').val()),
+                'Processname': $.trim(this_row.find('.inputprocessname').val()),
+                'SharedDedicatedID': $.trim(this_row.find('.shareded option:selected').val()),
+                'SystemAssetID': '',
+                'IPAddress': $.trim(this_row.find('.inputip').val()),
+                'SiteName': $.trim(this_row.find('.inputsitename').val()),
+                'AssetTypeNetworkID': 0,//1,
+                'SerialNumber': $.trim(this_row.find('.inputser').val()),
+                'TAGNumber': $.trim(this_row.find('.inputtag').val()),
+                'Location': $.trim(this_row.find('td .hdnlocation').val()),//Pick Redable value
+                'SubLocation': $.trim(this_row.find('.inputnetwklocation').val()),
+                'SubMinorCategory': $.trim(this_row.find('.netwkSubMinorCat option:selected').val()),
+                'Remark': $.trim(this_row.find('.inputremark').val()),
+                'DateOfAcquisition' :$.trim($row.find('td .dateofacquisitionnetwk option:selected').val()),
+            }
+
+            networkArray.push(InventoryNetwork)
+        });
+
+        //Start - Infra Inventory P2 Changes
+         
+        $("#tblInfra tr:gt(0)").each(function () {
+            var this_row = $(this);
+
+            var InventoryInfra = {
+                'PoNumber': $.trim($("#hdnPonumber").val()),//$.trim($('#txtPonumber').val()),
+                'PoId': '',
+                'PoDate': $('#hdnpodate').val(),
+                'GRNNumber': $.trim($('#drpgrnnumber :selected').text()),
+                'GRNDate': $('#hdngrndate').val(),
+                'ItemCode': $.trim(this_row.find('td .inputhiddenitemcode').val()), //Pick Redable value
+                'TAGCount': '',
+                'MajorCategory': $.trim(this_row.find('td .hdnmajorcat').val()),//Pick Redable value
+                'MinorCategory': $.trim(this_row.find('td .hdnminorcat').val()),//Pick Redable value
+                'MinorSubCategory': $.trim(this_row.find('td .hdnSubminorcat').val()),//Pick Redable value
+                'Description': '',
+                'ManufacturerName': $.trim($('#lblmanufacturename').text()),
+                'TaggableTypeID': $.trim(this_row.find('td .hdntagtype').val()) == 'Taggable' ? 1 : 2,//Pick Redable value
+                'AssetTypeID': $.trim(this_row.find('td .hdnassettype').val()) == 'IT' ? 56 : 57,//Pick Redable value
+                'ExpTypeID': $.trim(this_row.find('td .hdnexptype').val()) == 'O' ? 73 : 74,//Pick Redable value
+                'SiteName': $.trim(this_row.find('.inputsitename').val()),
+                'InventoryAssetType': $.trim(this_row.find('.InventoryAssetTypeInfra option:selected').val()), //Dropdown
+                'HostName': $.trim(this_row.find('.HostNameInfra option:selected').val()), //Dropdown
+                'ProcessName': $.trim(this_row.find('.inputprocessname').val()),
+                'IPAddress': $.trim(this_row.find('.inputipaddressinfra').val()),
+                'Make': $.trim(this_row.find('.MakeInfra option:selected').val()), //Dropdown
+                'Model': $.trim(this_row.find('.ModelInfra option:selected').val()), //Dropdown
+                'SharedDedicated': $.trim(this_row.find('.SharedDedicatedInfra option:selected').val()), //Dropdown
+                'DefineScope': $.trim(this_row.find('.inputdefinescopeinfra').val()),
+                'DeviceSupport': $.trim(this_row.find('.devicesupportinfra option:selected').val()), //Dropdown
+                'StockStatus': $.trim(this_row.find('.stockstatusinfra option:selected').val()), //Dropdown
+                'SerialNumber': $.trim(this_row.find('.inputserinfra').val()),
+                'TAGNumber': $.trim(this_row.find('.inputtaginfra').val()),
+                'Location': $.trim(this_row.find('td .hdnlocation').val()),//Pick Redable value
+                'SubLocation': $.trim(this_row.find('.inputinfralocation').val())
+                , 'SubMinorCategory': $.trim(this_row.find('.infraSubMinorCat option:selected').val()),
+                'Remark': $.trim(this_row.find('.inputremark').val()),
+                'DateOfAcquisition' :$.trim($row.find('td .dateofacquisitioninfra option:selected').val()),
+
+            }
+
+            infraArray.push(InventoryInfra)
+        });
+              
+        //End - Infra Inventory P2 Changes
+
+
+        var addInventory = { lstInventoryDesktopDetailEntity: desktopArray, lstInventoryLaptopDetailEntity: laptopArray, lstInventoryNetworkDetailEntity: networkArray, lstInventoryServerDetailEntity: serverArray, lstInventoryTelecomDetailEntity: telecomArray, lstInventoryInfraDetailEntity:infraArray };
+        var params = $.extend({}, doAjax_params_default);
+        params['url'] = 'Inventory/AddInventory';
+        params['data'] = addInventory;//JSON.stringify({ 'Description': data });
+        params['contentType'] = "application/json";
+        params['successCallbackFunction'] = function ManageInventorySuccess(msg) {
+            if (msg.Msg != "NODATAFORSAVE") {
+                if (msg.StatusCode == "200") {
+                    // alert(msg.Msg);
+                    //EmptyTable();
+
+                    bindInventoryType();
+                    toastrStateConfig();
+                    toastr['success'](msg.Msg);
+
+                    $("#txtPonumber").focus();
+                    $('#divContent').hide();
+                }
+                else {
+                    // alert(msg.Msg);
+                    // EmptyTable();
+                    toastr.remove();
+                    toastrStateConfig();
+                    toastr['error'](msg.Msg);
+                    $("#validateButton2").removeAttr("disabled", "");
+                }
+            }
+            else {
+                //toastrStateConfig();
+                //toastr['error'](msg.Msg);
+            }
+
+        }
+        doAjax(params);
+    }
+});
+
+function EmptyTable() {
+    var dektopHtml = "", laptopHtml = ""; serverHtml = "", telecomHtml = "", networkHtml = ""
+
+    dektopHtml = dektopHtml + " <tr> <td colspan='8' style='text-align: center'>No Data found</td> <tr>"
+    $("#tbodyDesktop").html(dektopHtml);
+
+    laptopHtml = laptopHtml + " <tr> <td colspan='10' style='text-align: center'>No Data found</td> <tr>"
+    $("#tbodyLaptop").html(laptopHtml);
+
+    serverHtml = serverHtml + " <tr> <td colspan='17' style='text-align: center'>No Data found</td> <tr>"
+    $("#tbodyServer").html(serverHtml);
+
+    telecomHtml = telecomHtml + " <tr> <td colspan='8' style='text-align: center'>No Data found</td> <tr>"
+    $("#tbodyTelecom").html(telecomHtml);
+
+    networkHtml = networkHtml + " <tr> <td colspan='14' style='text-align: center'>No Data found</td> <tr>"
+    $("#tbodyNetwork").html(networkHtml);
+}
+
+function ClearModalPopupControl() {
+    $('#txtDualHostName').val('');
+    $('#txtDeskID').val('');
+    $('#txtIPAddress').val('');
+    $('#txtModelSize').val('');
+    $('#txtRAM').val('');
+    $('#txtHardDisk').val('');
+    $('#txtDomainName').val('');
+    $('#txtproject').val('');
+    $('#txtLocation1').val('');
+    $('#txtwing').val('');
+    $('#txtInstalledOperatingSystem').val('');
+    $('#txtOtherSoftware').val('');
+    $('#txtWarrantyStart').val('');
+    $('#txtWarrantyEnd').val('');
+    $('#txtAgeSpend').val('');
+    $('#txtPhysicalVerification').val('');
+    $('#txtbond').val('');
+    $('#txtHostname').val('');
+    $('#txtAssetId').val('');
+
+    // $('#msoffice').val('');
+    $('#msoffice:checked').prop('checked', false);
+    $('#ocsclient:checked').prop('checked', false);
+    $('#acrobatReader:checked').prop('checked', false);
+    $('#Winzip:checked').prop('checked', false);
+    $('#antivirus:checked').attr('checked', false);
+    $("#sharedDedicate option").remove();
+
+}
+
+function ClearLaptopModalPopupControl() {
+  
+    $('#txtRAMlLaptop').val('');
+    $('#txtWarrantyStartLaptop').val('');
+    $('#txtWarrantyEndLaptop').val('');
+    $('#txtHostNameLaptop').val('');
+    $('#txtPropertyCode').val('');
+
+}
+
+$("#desktopModalClose").on("click", function () {
+    ClearModalPopupControl();
+});
+
+$("#laptotopModalClose").on("click", function () {
+    ClearLaptopModalPopupControl();
+});
+
+function GetCalendar() {
+    
+
+    var dateE = new Date();
+        dateE.setDate(dateE.getDate() + 1);
+        var FromEndDate = new Date();
+        var ToEndDate = new Date();
+        $('.calendar').datepicker({
+            autoclose: true,
+            startDate: dateE
+        });
+       // $.getScript("~/Content/assets/vendor/bootstrap-datepicker/bootstrap-datepicker.js");
+    //var dateE = new Date();
+    //dateE.setDate(dateE.getDate() + 1);
+    //var FromEndDate = new Date();
+    //var ToEndDate = new Date();
+    //$('.calendar').datepicker({
+    //    autoclose: true,
+    //    startDate: dateE
+    //});
+}
+
+
+//function GetAgeSpend() {
+//    var d = new Date();
+
+//    var SDate = $.trim($('#txtWarrantyStart').val());//"08/12/2017" ;//$("[id$=txtStartDate]").val().split('-');
+//    SDate = SDate.split('/');
+//    var Smonth = SDate[0];
+//    var Sday = SDate[1];
+//    var Syear = SDate[2];
+
+//    var Emonth = d.getMonth() + 1;
+//    var Eday = d.getDate();
+//    var Eyear = d.getFullYear();
+//    var y = parseInt(Eyear) - parseInt(Syear);
+//    var m, d;
+//    m = parseInt(Emonth) - parseInt(Smonth);
+//    d = parseInt(Eday) - parseInt(Sday);
+//    $('#txtAgeSpend').val(y + ' years ,' + m + ' month');
+
+//    // alert('Age Spend ' + y + ' years ' + m + ' month ' + d + ' days');
+//}
+
+
+//$('#txtWarrantyStart').datepicker({
+
+//    onSelect: function (date) {
+//        //alert(date)
+//        GetAgeSpend();
+//    },
+//    autoclose: true
+//});
+
+
+function getDesktopDescription(val) {
+    // alert(val);
+    var Splited = val.split('_')
+    var desktopDescription = $('#divDesktop_' + Splited[1]);
+    var expand = $('.btn-expand_' + Splited[1]);
+    var collapse = $('.btn-collapse_' + Splited[1]);
+    if (desktopDescription.is(":visible")) {
+        desktopDescription.hide();
+        collapse.hide();
+        expand.show();
+    }
+    else {
+        desktopDescription.show();
+        collapse.show();
+        expand.hide();
+    }
+}
+
+function getLaptopDescription(val) {
+    // alert(val);
+    var Splited = val.split('_')
+    var laptopDescription = $('#divLaptop_' + Splited[1]);
+    var expand = $('.btn-expand_' + Splited[1]);
+    var collapse = $('.btn-collapse_' + Splited[1]);
+
+    if (laptopDescription.is(":visible")) {
+        laptopDescription.hide();
+        collapse.hide();
+        expand.show();
+    }
+    else {
+        laptopDescription.show();
+        collapse.show();
+        expand.hide();
+    }
+}
+
+function getServerDescription(val) {
+    // alert(val);
+    var Splited = val.split('_')
+    var serverDescription = $('#divServer_' + Splited[1]);
+    var expand = $('.btn-expand_' + Splited[1]);
+    var collapse = $('.btn-collapse_' + Splited[1]);
+    if (serverDescription.is(":visible")) {
+        serverDescription.hide();
+        collapse.hide();
+        expand.show();
+    }
+
+    else {
+        serverDescription.show();
+        collapse.show();
+        expand.hide();
+    }
+}
+
+function getTelecomDescription(val) {
+    // alert(val);
+    var Splited = val.split('_')
+    var telecomDescription = $('#divTelecom_' + Splited[1]);
+    var expand = $('.btn-expand_' + Splited[1]);
+    var collapse = $('.btn-collapse_' + Splited[1]);
+    if (telecomDescription.is(":visible")) {
+        telecomDescription.hide();
+        collapse.hide();
+        expand.show();
+    }
+
+    else {
+        telecomDescription.show();
+        collapse.show();
+        expand.hide();
+    }
+}
+
+function getNetworkDescription(val) {
+    // alert(val);
+    var Splited = val.split('_')
+    var networkDescription = $('#divNetwork_' + Splited[1]);
+    var expand = $('.btn-expand_' + Splited[1]);
+    var collapse = $('.btn-collapse_' + Splited[1]);
+    if (networkDescription.is(":visible")) {
+        networkDescription.hide();
+        collapse.hide();
+        expand.show();
+    }
+    else {
+        networkDescription.show();
+        collapse.show();
+        expand.hide();
+    }
+}
+
+//Start - Infra Inventory P2 Changes
+function getInfraDescription(val) {
+    // alert(val);
+    var Splited = val.split('_')
+    var InfraDescription = $('#divInfra_' + Splited[1]);
+    var expand = $('.btn-expand_' + Splited[1]);
+    var collapse = $('.btn-collapse_' + Splited[1]);
+    if (InfraDescription.is(":visible")) {
+        InfraDescription.hide();
+        collapse.hide();
+        expand.show();
+    }
+
+    else {
+        InfraDescription.show();
+        collapse.show();
+        expand.hide();
+    }
+}
+
+//End - Infra Inventory P2 Changes
+
+
+
+//START -- Desktop Collapse and Expand all rows at a time
+
+$("#exampleExpandDesktopBtn").on("click", function () {
+    if ($('#tbodyDesktop tr').length > 0) {
+        var desk = $('.deskdatacntr');
+        $('.de').hide();
+        $('.dc').show();
+        desk.show();
+    }
+});
+
+$("#exampleCollapseDesktopBtn").on("click", function () {
+    if ($('#tbodyDesktop tr').length > 0) {
+        var desk = $('.deskdatacntr');
+        $('.de').show();
+        $('.dc').hide();
+        desk.hide();
+    }
+});
+
+//END -- Desktop Collapse and Expand all rows at a time
+
+
+//START -- Laptop Collapse and Expand all rows at a time
+
+$("#exampleExpandLaptopBtn").on("click", function () {
+    if ($('#tbodyLaptop tr').length > 0) {
+        var lap = $('.laptopdatacntr');
+        $('.le').hide();
+        $('.lc').show();
+        lap.show();
+    }
+});
+
+$("#exampleCollapseLaptopBtn").on("click", function () {
+    if ($('#tbodyLaptop tr').length > 0) {
+        var lap = $('.laptopdatacntr');
+        $('.le').show();
+        $('.lc').hide();
+        lap.hide();
+    }
+});
+
+//END -- Laptop Collapse and Expand all rows at a time
+
+
+//START -- Network Collapse and Expand all rows at a time
+
+$("#exampleExpandNetworkBtn").on("click", function () {
+    if ($('#tbodyNetwork tr').length > 0) {
+        var nw = $('.netwrkdatacntr');
+        $('.ne').hide();
+        $('.nc').show();
+        nw.show();
+    }
+});
+
+$("#exampleCollapseNetworkBtn").on("click", function () {
+    if ($('#tbodyNetwork tr').length > 0) {
+        var nw = $('.netwrkdatacntr');
+        $('.ne').show();
+        $('.nc').hide();
+        nw.hide();
+    }
+});
+
+//END -- Network Collapse and Expand all rows at a time
+
+
+//START -- Server Collapse and Expand all rows at a time
+
+$("#exampleExpandServerBtn").on("click", function () {
+    if ($('#tbodyServer tr').length > 0) {
+        var ser = $('.serverdatacntr');
+        $('.se').hide();
+        $('.sc').show();
+        ser.show();
+    }
+});
+
+$("#exampleCollapseServerBtn").on("click", function () {
+    if ($('#tbodyServer tr').length > 0) {
+        var ser = $('.serverdatacntr');
+        $('.se').show();
+        $('.sc').hide();
+        ser.hide();
+    }
+});
+
+//END -- Server Collapse and Expand all rows at a time
+
+
+//START -- Telecom Collapse and Expand all rows at a time
+
+$("#exampleTelecomExpandBtn").on("click", function () {
+    if ($('#tbodyTelecom tr').length > 0) {
+        var tel = $('.telecomdatacntr');
+        $('.te').hide();
+        $('.tc').show();
+        tel.show();
+    }
+});
+
+$("#exampleTelecomCollapseBtn").on("click", function () {
+    if ($('#tbodyTelecom tr').length > 0) {
+        var tel = $('.telecomdatacntr');
+        $('.te').show();
+        $('.tc').hide();
+        tel.hide();
+    }
+});
+
+//END -- Telecom Collapse and Expand all rows at a time
+
+
+
+//Start - Infra Inventory P2 Changes
+$("#exampleExpandInfraBtn").on("click", function () {
+    if ($('#tbodyInfra tr').length > 0) {
+        var infra = $('.infradatacntr');
+        $('.ie').hide();
+        $('.ic').show();
+        infra.show();
+    }
+});
+
+$("#exampleCollapseInfraBtn").on("click", function () {
+    if ($('#tbodyInfra tr').length > 0) {
+        var infra = $('.infradatacntr');
+        $('.ie').show();
+        $('.ic').hide();
+        infra.hide();
+    }
+});
+//End - Infra Inventory P2 Changes
+
+
+function onReset() {
+    $("#exampleAccordionDesktop > tbody").html("");
+    $('#dsktopCount').html('');
+
+    $("#tblLaptop > tbody").html("");
+    $('#laptopCount').html('');
+
+    $("#tblNetwork > tbody").html("");
+    $('#networkCount').html('');
+
+    $("#tblServer > tbody").html("");
+    $('#serverCount').html('');
+
+    $("#tblTelecom > tbody").html("");
+    $('#telecomCount').html('');
+
+    //Start - Infra Inventory P2 Changes
+    $("#tblInfra > tbody").html("");
+    $('#infraCount').html('');
+    //End - Infra Inventory P2 Changes
+
+
+    $('#txtPonumber').val('');
+    $("#hdnPonumber").val("0");
+    $('#drpgrnnumber').empty();
+    $('#divContent').hide();
+}
