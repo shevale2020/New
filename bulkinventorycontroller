@@ -1,0 +1,1508 @@
+using OfficeOpenXml;
+using System;
+using System.Collections.Generic;
+using System.Configuration;
+using System.Data;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Web;
+using System.Web.Http;
+using System.Web.Http.Cors;
+using System.Web.Script.Serialization;
+using Wns.Sdg.Product.FAR.BusinessFacade;
+using Wns.Sdg.Product.FAR.BusinessFacade.Interface;
+using Wns.Sdg.Product.FAR.Entity;
+using Wns.Sdg.Product.FAR.Shared;
+
+namespace Wns.Sdg.Product.FAR.WebApi.Controllers
+{
+    [EnableCors(origins: "*", headers: "*", methods: "*")]
+    public class BulkInventoryController : ApiController
+    {
+        string FARSalt = System.Web.Configuration.WebConfigurationManager.AppSettings["FARSalt"];
+        string pathToSave = System.Web.Configuration.WebConfigurationManager.AppSettings["FileSave"].ToString();
+        string TagNumber = System.Web.Configuration.WebConfigurationManager.AppSettings["TagNumber"];
+        DataSet ds4Inventory = null;
+
+
+        #region Region - Production Upload Inventory
+
+        /// <summary>
+        /// Upload Inventroy Data
+        /// </summary>
+        /// <returns></returns>
+        [AcceptVerbs("GET", "POST")]
+        [Route("FAR/BulkInventory/UploadInventory")]
+        public InventoryEntity UploadInventory()
+        {
+            InventoryEntity returnInventoryEntity = new InventoryEntity();
+            string fName = string.Empty;
+            string extn = string.Empty;
+            SessionData requestSessionData = new SessionData();
+            var headers = Request.Headers;
+            if (headers.Contains("Authorization"))
+            {
+                string authenticationHeaderVal = headers.GetValues("Authorization").First();
+                string SessionData = EncryptionDecryptionStandard.DecryptionJsonByType(authenticationHeaderVal, FARSalt);
+                SessionDataController sessionData = new JavaScriptSerializer().Deserialize<SessionDataController>(SessionData);
+
+                InventoryEntity objInventoryEntity = new InventoryEntity();
+                objInventoryEntity.RecCreatedBy = sessionData.EmplId;
+                objInventoryEntity.UserID = Convert.ToInt64(sessionData.UserID);
+                objInventoryEntity.RoleID = Convert.ToInt32(sessionData.RoleID);
+                objInventoryEntity.Emplid = Convert.ToInt64(sessionData.EmplId);
+
+
+                #region existing code
+
+                #region file
+                foreach (string fileName in HttpContext.Current.Request.Files)
+                {
+                    HttpPostedFile file = HttpContext.Current.Request.Files.Get(fileName);
+                    string f_Name = file.FileName;
+                    if (file != null && file.ContentLength > 0)
+                    {
+                        if (Path.GetExtension(f_Name) == ".xlsx" || Path.GetExtension(f_Name) == ".xls")
+                        {
+                            try
+                            {
+                                extn = Path.GetExtension(f_Name);
+                                fName = f_Name;
+                                string FileNm = pathToSave + fName;
+
+                                file.SaveAs(FileNm);
+
+                                ExcelPackage package = new ExcelPackage(file.InputStream);
+                                ds4Inventory = package.ToDataSet();
+                            }
+                            catch (Exception)
+                            {
+                                throw new HttpResponseException(Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Invalid template.#0"));
+                                //returnInventoryEntity.Msg= "Invalid template.";
+                                //return;
+                            }
+                        }
+                        else
+                        {
+                            throw new HttpResponseException(Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Please upload '.xlsx / .xls' file only.#0"));
+                            //returnInventoryEntity.Msg = "Please upload '.xlsx / .xls' file only.";
+                            //return;
+                        }
+                    }
+                }
+                #endregion file
+                bool Desktopflg = false, Networkflg = false, Telecomflg = false, Laptopflg = false, Serverflg = false, Defaultflg = false;
+
+                //Start - Infra Inventory P2 Changes
+                bool Infraflag = false;
+                //End - Infra Inventory P2 Changes
+
+
+                #region f
+                ds4Inventory.Tables.RemoveAt(5);//Remove SubMinorCategory DataTable
+                foreach (DataTable dtInv in ds4Inventory.Tables)
+                {
+                    switch (dtInv.TableName)
+                    {
+                        case "Desktop":
+                            if (dtInv == null)
+                            {
+                                Desktopflg = true;
+                            }
+                            else if (dtInv != null && dtInv.Rows.Count == 0)
+                            {
+                                Desktopflg = true;
+                            }
+                            break;
+                        case "Network":
+                            if (dtInv == null)
+                            {
+                                Networkflg = true;
+                            }
+                            else if (dtInv != null && dtInv.Rows.Count == 0)
+                            {
+                                Networkflg = true;
+                            }
+                            break;
+                        case "Telecom":
+                            if (dtInv == null)
+                            {
+                                Telecomflg = true;
+                            }
+                            else if (dtInv != null && dtInv.Rows.Count == 0)
+                            {
+                                Telecomflg = true;
+                            }
+                            break;
+                        case "Laptop":
+                            if (dtInv == null)
+                            {
+                                Laptopflg = true;
+                            }
+                            else if (dtInv != null && dtInv.Rows.Count == 0)
+                            {
+                                Laptopflg = true;
+                            }
+                            break;
+                        case "Server":
+                            if (dtInv == null)
+                            {
+                                Serverflg = true;
+                            }
+                            else if (dtInv != null && dtInv.Rows.Count == 0)
+                            {
+                                Serverflg = true;
+                            }
+                            break;
+                        //Start - Infra Inventory P2 Changes
+                        case "Infra":
+                            if (dtInv == null)
+                            {
+                                Infraflag = true;
+                            }
+                            else if (dtInv != null && dtInv.Rows.Count == 0)
+                            {
+                                Infraflag = true;
+                            }
+                            break;
+                        //End - Infra Inventory P2 Changes
+                        default:
+                            Defaultflg = true;
+                            break;
+                    }
+                }
+                #endregion f
+                if (Defaultflg == true)
+                {
+                    throw new HttpResponseException(Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Please upload valid file.#0"));
+                    //returnInventoryEntity.Msg = "Please upload valid file.";
+                    //return;
+                }
+
+                if (Desktopflg == true && Networkflg == true && Telecomflg == true && Laptopflg == true && Serverflg == true && Infraflag == true)
+                {
+                    throw new HttpResponseException(Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Please upload valid file.#0"));
+                    //returnInventoryEntity.Msg = "Please upload valid file.";
+                    //return;
+                }
+
+                foreach (DataTable dtInv in ds4Inventory.Tables)
+                {
+                    dtInv.Columns.Add("IsAdd");
+                    dtInv.Columns.Add("ErrorMsg");
+
+                    dtInv.Columns.Add("PoId", typeof(string)).SetOrdinal(1);
+                    dtInv.Columns.Add("TAGCount", typeof(string)).SetOrdinal(6);
+                    dtInv.Columns.Add("MinorSubCategory", typeof(string)).SetOrdinal(9);
+                    dtInv.Columns.Add("Description", typeof(string)).SetOrdinal(10);
+
+                    ExcelPackageExtensions.GetDataTableHeader(dtInv);
+                }
+
+                bool IsError = false;
+                string filename = string.Empty;
+                /*Validation*/
+
+                foreach (DataTable dtInventory in ds4Inventory.Tables)
+                {
+                    switch (dtInventory.TableName)
+                    {
+                        case "Desktop":
+                        case "Network":
+                        case "Telecom":
+                            dtInventory.Columns["Make"].ColumnName = "Make" + dtInventory.TableName + "ID";
+                            break;
+                    }
+
+
+                    //int sheetrow = 2, AddRow = 2;
+                    int r = 0;
+                    string ErrorMsg = string.Empty;
+                    for (; r < dtInventory.Rows.Count; r++)
+                    {
+                        //if (dtInventory.Rows.Count == 0)
+                        //    break;
+                        #region validation
+                        ErrorMsg = string.Empty;
+
+                        bool ErrFlg = false;
+                        if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["TagNumber"].ToString()) == true)
+                        {
+                            //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Taggable Number. ";
+                            ErrorMsg += "Please enter Tag Number.";
+                            ErrFlg = true;
+                        }
+                        else
+                        {
+                            if (dtInventory.Rows[r]["TagNumber"].ToString().Length > 14)
+                            {
+                                ErrorMsg += "Tag Number length should not exceed 14 characters. ";
+                                ErrFlg = true;
+                            }
+
+                            /***ADDED by swati **/
+                            string strTag = dtInventory.Rows[r]["TagNumber"].ToString();
+                            IEnumerable<DataRow> dtrow = dtInventory.AsEnumerable().Where(x => x.Field<String>("TagNumber") == strTag);
+                            var duplicates = dtrow.AsEnumerable().GroupBy(i => i["TagNumber"]).Where(gr => gr.Count() > 1).Select(g => g.Key).Any();
+
+                            if (duplicates)
+                            {
+                                ErrorMsg += "Duplicate Tag Number. ";
+                                ErrFlg = true;
+                            }
+                        }
+                        //else if (dtInventory.Rows[r]["TagNumber"].ToString().Length != Convert.ToInt32(TagNumber))
+                        //{
+                        //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Taggable Number not asper length. ";
+                        //    ErrorMsg += "Taggable Number not asper length. ";
+                        //    ErrFlg = true;
+                        //}
+
+                        if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["SerialNumber"].ToString()) == true)
+                        {
+                            //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Serail Number. ";
+                            ErrorMsg += "Please enter Serial Number.";
+                            ErrFlg = true;
+                        }
+                        else
+                        {
+                            if (dtInventory.Rows[r]["SerialNumber"].ToString().Length > 50)
+                            {
+                                ErrorMsg += "Serial Number length should not exceed 50 characters. ";
+                                ErrFlg = true;
+                            }
+                        }
+
+                        switch (dtInventory.TableName)
+                        {
+                            case "Desktop":
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["AllocationTypeID"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Allocation Type.";
+                                //    ErrorMsg += "Please enter Allocation Type.";
+                                //    ErrFlg = true;
+                                //}
+
+
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["MakeDesktopID"].ToString()) == true)
+                                {
+                                    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Make.";
+                                    ErrorMsg += "Please enter Make.";
+                                    ErrFlg = true;
+                                }
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["Processor"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Processor.";
+                                //    ErrorMsg += "Please enter Processor.";
+                                //    ErrFlg = true;
+                                //}
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["PurchasedOS"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Purchased OS.";
+                                //    ErrorMsg += "Please enter Purchased OS.";
+                                //    ErrFlg = true;
+                                //}
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["StockStatusDesktopID"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Stock Status.";
+                                //    ErrorMsg += "Please enter Stock Status.";
+                                //    ErrFlg = true;
+                                //}
+
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["WarrantyStart"].ToString()) == false && string.IsNullOrWhiteSpace(dtInventory.Rows[r]["WarrantyEnd"].ToString()) == true)
+                                {
+                                    if (!ExcelPackageExtensions.CheckDate(dtInventory.Rows[r]["WarrantyStart"].ToString()))
+                                    {
+                                        ErrorMsg += "Warranty Start date Should be mm/dd/yyyy format.";
+                                        ErrFlg = true;
+                                    }
+                                }
+
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["WarrantyStart"].ToString()) == true && string.IsNullOrWhiteSpace(dtInventory.Rows[r]["WarrantyEnd"].ToString()) == false)
+                                {
+                                    if (!ExcelPackageExtensions.CheckDate(dtInventory.Rows[r]["WarrantyEnd"].ToString()))
+                                    {
+                                        ErrorMsg += "Warranty End date Should be mm/dd/yyyy format.";
+                                        ErrFlg = true;
+                                    }
+                                }
+
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["WarrantyStart"].ToString()) == false && string.IsNullOrWhiteSpace(dtInventory.Rows[r]["WarrantyEnd"].ToString()) == false)
+                                {
+                                    //if (Convert.ToDateTime(dtInventory.Rows[r]["WarrantyStart"].ToString()) > Convert.ToDateTime(dtInventory.Rows[r]["WarrantyEnd"].ToString()))
+                                    //{
+                                    //    ErrorMsg += "Warranty Start should be less than Warranty End.";
+                                    //    ErrFlg = true;
+                                    //}
+                                    bool isValidWarantyStartDt = true, isValidWarantyEndDt = true;
+                                    string[] formats = {"dd/MM/yyyy", "dd-MMM-yyyy", "yyyy-MM-dd",
+                                                      "dd-MM-yyyy", "M/d/yyyy", "dd MMM yyyy"};
+
+
+                                    if (!ExcelPackageExtensions.CheckDate(dtInventory.Rows[r]["WarrantyStart"].ToString()))
+                                    {
+                                        ErrorMsg += "Warranty Start date Should be mm/dd/yyyy format.";
+                                        ErrFlg = true;
+                                        isValidWarantyStartDt = false;
+                                    }
+
+                                    if (!ExcelPackageExtensions.CheckDate(dtInventory.Rows[r]["WarrantyEnd"].ToString()))
+                                    {
+                                        ErrorMsg += "Warranty End date Should be mm/dd/yyyy format.";
+                                        ErrFlg = true;
+                                        isValidWarantyEndDt = false;
+                                    }
+
+                                    if (isValidWarantyStartDt == true && isValidWarantyEndDt == true)
+                                    {
+                                        string WarrantyStartDate = DateTime.ParseExact(dtInventory.Rows[r]["WarrantyStart"].ToString(), formats, CultureInfo.InvariantCulture, DateTimeStyles.None).ToString("MM/dd/yyyy");
+                                        string WarrantyEndDate = DateTime.ParseExact(dtInventory.Rows[r]["WarrantyEnd"].ToString(), formats, CultureInfo.InvariantCulture, DateTimeStyles.None).ToString("MM/dd/yyyy");
+
+                                        if (Convert.ToDateTime(WarrantyStartDate) > Convert.ToDateTime(WarrantyEndDate))
+                                        {
+                                            ErrorMsg += "Warranty Start should be less than Warranty End.";
+                                            ErrFlg = true;
+                                        }
+                                    }
+                                }
+
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["SubLocation"].ToString()) == true)
+                                {
+                                    ErrorMsg += "Please enter sub location.";
+                                    ErrFlg = true;
+                                }
+
+
+                                break;
+                            case "Network":
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["SiteName"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please select Site Name.";
+                                //    ErrorMsg += "Please enter Stock Status.";
+                                //    ErrFlg = true;
+                                //}
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["MakeNetworkID"].ToString()) == true)
+                                {
+                                    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please select Make.";
+                                    ErrorMsg += "Please select Make.";
+                                    ErrFlg = true;
+                                }
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["ModelSize"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Model Size.";
+                                //    ErrorMsg += "Please enter Model Size.";
+                                //    ErrFlg = true;
+                                //}
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["Processname"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Process Name.";
+                                //    ErrorMsg += "Please enter Process Name.";
+                                //    ErrFlg = true;
+                                //}
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["SharedDedicatedID"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please select Shared/Dedicated.";
+                                //    ErrorMsg += "Please select Shared/Dedicated.";
+                                //    ErrFlg = true;
+                                //}
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["StockStatusNetworkID"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please select Stock Status.";
+                                //    ErrorMsg += "Please select Stock Status.";
+                                //    ErrFlg = true;
+                                //}
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["DeviceSupportID"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please select Device Support. ";
+                                //    ErrorMsg += "Please select Device Support. ";
+                                //    ErrFlg = true;
+                                //}
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["DefineScope"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please select Define Scope.";
+                                //    ErrorMsg += "Please select Define Scope.";
+                                //    ErrFlg = true;
+                                //}
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["EndoflifeofdeviceID"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter End of life of Device.";
+                                //    ErrorMsg += "Please enter End of life of Device.";
+                                //    ErrFlg = true;
+                                //}
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["Model"].ToString()) == true)
+                                {
+                                    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please select Make.";
+                                    ErrorMsg += "Please enter Model.";
+                                    ErrFlg = true;
+                                }
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["SubLocation"].ToString()) == true)
+                                {
+                                    ErrorMsg += "Please enter sub location.";
+                                    ErrFlg = true;
+                                }
+                                break;
+                            case "Telecom":
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["HostName"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Host Name.";
+                                //    ErrorMsg += "Please enter Host Name.";
+                                //    ErrFlg = true;
+                                //}
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["MakeTelecomID"].ToString()) == true)
+                                {
+                                    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please select Make.";
+                                    ErrorMsg += "Please select Make.";
+                                    ErrFlg = true;
+                                }
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["ModelTelecom"].ToString()) == true)
+                                {
+                                    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please select Model.";
+                                    ErrorMsg += "Please select Model.";
+                                    ErrFlg = true;
+                                }
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["StockStatusTelecomID"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please select Stock Status.";
+                                //    ErrorMsg += "Please select Stock Status.";
+                                //    ErrFlg = true;
+                                //}
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["DeviceLifeTelecomID"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please select the Device life.";
+                                //    ErrorMsg += "Please select the Device life.";
+                                //    ErrFlg = true;
+                                //}
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["SubLocation"].ToString()) == true)
+                                {
+                                    ErrorMsg += "Please enter sub location.";
+                                    ErrFlg = true;
+                                }
+                                break;
+                            case "Laptop":
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["EmployeeID"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Employee ID.";
+                                //    ErrorMsg += "Please enter Employee ID.";
+                                //    ErrFlg = true;
+                                //}
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["EmployeeName"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Employee Name.";
+                                //    ErrorMsg += "Please enter Employee Name.";
+                                //    ErrFlg = true;
+                                //}
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["HostName"].ToString()) == true)
+                                {
+                                    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Host Name.";
+                                    ErrorMsg += "Please enter Host Name.";
+                                    ErrFlg = true;
+                                }
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["Make"].ToString()) == true)
+                                {
+                                    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Make.";
+                                    ErrorMsg += "Please enter Make.";
+                                    ErrFlg = true;
+                                }
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["Model"].ToString()) == true)
+                                {
+                                    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Model.";
+                                    ErrorMsg += "Please enter Model.";
+                                    ErrFlg = true;
+                                }
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["BadgeID"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Badge ID.";
+                                //    ErrorMsg += "Please enter Badge ID.";
+                                //    ErrFlg = true;
+                                //}
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["IssueDate"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Issue Date.";
+                                //    ErrorMsg += "Please enter Issue Date.";
+                                //    ErrFlg = true;
+                                //}
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["ExpectedReturnDate"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Expected Return Date.";
+                                //    ErrorMsg += "Please enter Expected Return Date.";
+                                //    ErrFlg = true;
+                                //}
+
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["IssueDate"].ToString()) == false && string.IsNullOrWhiteSpace(dtInventory.Rows[r]["ExpectedReturnDate"].ToString()) == true)
+                                {
+                                    if (!ExcelPackageExtensions.CheckDate(dtInventory.Rows[r]["IssueDate"].ToString()))
+                                    {
+                                        ErrorMsg += "Issue Date Should be mm/dd/yyyy format.";
+                                        ErrFlg = true;
+                                    }
+                                }
+
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["IssueDate"].ToString()) == true && string.IsNullOrWhiteSpace(dtInventory.Rows[r]["ExpectedReturnDate"].ToString()) == false)
+                                {
+                                    if (!ExcelPackageExtensions.CheckDate(dtInventory.Rows[r]["ExpectedReturnDate"].ToString()))
+                                    {
+                                        ErrorMsg += "Expected Date Should be mm/dd/yyyy format.";
+                                        ErrFlg = true;
+                                    }
+                                }
+
+
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["IssueDate"].ToString()) == false && string.IsNullOrWhiteSpace(dtInventory.Rows[r]["ExpectedReturnDate"].ToString()) == false)
+                                {
+                                    //if (Convert.ToDateTime(dtInventory.Rows[r]["IssueDate"].ToString()) > Convert.ToDateTime(dtInventory.Rows[r]["ExpectedReturnDate"].ToString()))
+                                    //{
+                                    //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Issue Date should be less than Expected return Date.";
+                                    //    ErrorMsg += "Issue Date should be less than Expected return Date.";
+                                    //    ErrFlg = true;
+                                    //}
+
+                                    string[] formats = {"dd/MM/yyyy", "dd-MMM-yyyy", "yyyy-MM-dd",
+                                                      "dd-MM-yyyy", "M/d/yyyy", "dd MMM yyyy"};
+
+
+                                    bool isValidIssueDate = true, isValidExpectedReturnDate = true;
+
+
+
+                                    if (!ExcelPackageExtensions.CheckDate(dtInventory.Rows[r]["IssueDate"].ToString()))
+                                    {
+                                        ErrorMsg += "Issue Date Should be mm/dd/yyyy format.";
+                                        ErrFlg = true;
+                                        isValidIssueDate = false;
+                                    }
+
+                                    if (!ExcelPackageExtensions.CheckDate(dtInventory.Rows[r]["ExpectedReturnDate"].ToString()))
+                                    {
+                                        ErrorMsg += "Expected Date Should be mm/dd/yyyy format.";
+                                        ErrFlg = true;
+                                        isValidExpectedReturnDate = false;
+                                    }
+
+                                    if (isValidIssueDate == true && isValidExpectedReturnDate == true)
+                                    {
+                                        string issueDate = DateTime.ParseExact(dtInventory.Rows[r]["IssueDate"].ToString(), formats, CultureInfo.InvariantCulture, DateTimeStyles.None).ToString("MM/dd/yyyy"); ;
+                                        string expectedRetunDate = DateTime.ParseExact(dtInventory.Rows[r]["ExpectedReturnDate"].ToString(), formats, CultureInfo.InvariantCulture, DateTimeStyles.None).ToString("MM/dd/yyyy");
+
+                                        //dtInventory.Rows[r]["IssueDate"] = issueDate;
+                                        //dtInventory.Rows[r]["ExpectedReturnDate"] = expectedRetunDate;
+
+                                        //dtInventory.AcceptChanges();
+
+                                        if (Convert.ToDateTime(issueDate) > Convert.ToDateTime(expectedRetunDate))
+                                        {
+                                            ErrorMsg += "Issue Date should be less than Expected return Date.";
+                                            ErrFlg = true;
+                                        }
+                                    }
+                                }
+
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["WarrantyStart"].ToString()) == false && string.IsNullOrWhiteSpace(dtInventory.Rows[r]["WarrantyEnd"].ToString()) == true)
+                                {
+                                    if (!ExcelPackageExtensions.CheckDate(dtInventory.Rows[r]["WarrantyStart"].ToString()))
+                                    {
+                                        ErrorMsg += "Warranty Start date Should be mm/dd/yyyy format.";
+                                        ErrFlg = true;
+                                    }
+                                }
+
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["WarrantyStart"].ToString()) == true && string.IsNullOrWhiteSpace(dtInventory.Rows[r]["WarrantyEnd"].ToString()) == false)
+                                {
+                                    if (!ExcelPackageExtensions.CheckDate(dtInventory.Rows[r]["WarrantyEnd"].ToString()))
+                                    {
+                                        ErrorMsg += "Warranty End date Should be mm/dd/yyyy format.";
+                                        ErrFlg = true;
+                                    }
+                                }
+
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["WarrantyStart"].ToString()) == false && string.IsNullOrWhiteSpace(dtInventory.Rows[r]["WarrantyEnd"].ToString()) == false)
+                                {
+                                    //if (Convert.ToDateTime(dtInventory.Rows[r]["WarrantyStart"].ToString()) > Convert.ToDateTime(dtInventory.Rows[r]["WarrantyEnd"].ToString()))
+                                    //{
+                                    //    ErrorMsg += "Warranty Start should be less than Warranty End.";
+                                    //    ErrFlg = true;
+                                    //}
+                                    bool isValidWarantyStartDt = true, isValidWarantyEndDt = true;
+                                    string[] formats = {"dd/MM/yyyy", "dd-MMM-yyyy", "yyyy-MM-dd",
+                                                      "dd-MM-yyyy", "M/d/yyyy", "dd MMM yyyy"};
+
+
+                                    if (!ExcelPackageExtensions.CheckDate(dtInventory.Rows[r]["WarrantyStart"].ToString()))
+                                    {
+                                        ErrorMsg += "Warranty Start date Should be mm/dd/yyyy format.";
+                                        ErrFlg = true;
+                                        isValidWarantyStartDt = false;
+                                    }
+
+                                    if (!ExcelPackageExtensions.CheckDate(dtInventory.Rows[r]["WarrantyEnd"].ToString()))
+                                    {
+                                        ErrorMsg += "Warranty End date Should be mm/dd/yyyy format.";
+                                        ErrFlg = true;
+                                        isValidWarantyEndDt = false;
+                                    }
+
+                                    if (isValidWarantyStartDt == true && isValidWarantyEndDt == true)
+                                    {
+                                        string WarrantyStartDate = DateTime.ParseExact(dtInventory.Rows[r]["WarrantyStart"].ToString(), formats, CultureInfo.InvariantCulture, DateTimeStyles.None).ToString("MM/dd/yyyy");
+                                        string WarrantyEndDate = DateTime.ParseExact(dtInventory.Rows[r]["WarrantyEnd"].ToString(), formats, CultureInfo.InvariantCulture, DateTimeStyles.None).ToString("MM/dd/yyyy");
+
+                                        if (Convert.ToDateTime(WarrantyStartDate) > Convert.ToDateTime(WarrantyEndDate))
+                                        {
+                                            ErrorMsg += "Warranty Start should be less than Warranty End.";
+                                            ErrFlg = true;
+                                        }
+                                    }
+                                }
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["PropertyCode"].ToString()) != true)
+                                {
+                                    if (dtInventory.Rows[r]["PropertyCode"].ToString().Length > 10)
+                                    {
+                                        ErrorMsg += "Property Code length should not exceed 10 digit.";
+                                        ErrFlg = true;
+                                    }
+                                    else
+                                    {
+                                        bool isCharacter = dtInventory.Rows[r]["PropertyCode"].ToString().Take(2).All(char.IsLetter);
+                                        bool isNumber = dtInventory.Rows[r]["PropertyCode"].ToString().Substring(2).All(char.IsNumber);
+                                        if (isCharacter ==false || isNumber ==false)
+                                        {
+                                            ErrorMsg += "Property Code should be first 2 digit in character and next 8 digit in numeric format.";
+                                            ErrFlg = true;
+                                        }
+
+                                    }
+                                }
+                                else
+                                {
+                                    ErrorMsg += "Please enter Property Code.";
+                                    ErrFlg = true;
+                                }
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["SubLocation"].ToString()) == true)
+                                {
+                                    ErrorMsg += "Please enter sub location.";
+                                    ErrFlg = true;
+                                }
+                                break;
+                            case "Server":
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["AcquistionDate"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Acquisition Date.";
+                                //    ErrorMsg += "Please enter Acquisition Date.";
+                                //    ErrFlg = true;
+                                //}
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["ServerName"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Server Name.";
+                                //    ErrorMsg += "Please enter Server Name.";
+                                //    ErrFlg = true;
+                                //}
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["ServerStatusID"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Status.";
+                                //    ErrorMsg += "Please enter Status.";
+                                //    ErrFlg = true;
+                                //}
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["Type"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter Type.";
+                                //    ErrorMsg += "Please enter Type.";
+                                //    ErrFlg = true;
+                                //}
+                                //if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["OS"].ToString()) == true)
+                                //{
+                                //    //sheet.Cells[AddRow, dtInventory.Columns.Count + 1].Value += "Please enter OS.";
+                                //    ErrorMsg += "Please enter OS.";
+                                //    ErrFlg = true;
+                                //}
+
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["SubLocation"].ToString()) == true)
+                                {
+                                    ErrorMsg += "Please enter sub location.";
+                                    ErrFlg = true;
+                                }
+                               
+                                break;
+
+                            //Start - Infra Inventory P2 Changes
+                            case "Infra":
+                                if (dtInventory.Rows[r]["SiteName"].ToString().Length > 100)
+                                {
+                                    ErrorMsg += "Site Name length should not exceed 100 characters.";
+                                    ErrFlg = true;
+                                }
+                                if (dtInventory.Rows[r]["ProcessName"].ToString().Length > 100)
+                                {
+                                    ErrorMsg += "Process Name length should not exceed 100 characters.";
+                                    ErrFlg = true;
+                                }
+                                if (dtInventory.Rows[r]["IPAddress"].ToString().Length > 50)
+                                {
+                                    ErrorMsg += "IP Address length should not exceed 50 characters.";
+                                    ErrFlg = true;
+                                }
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["Make"].ToString()) == true)
+                                {
+                                    ErrorMsg += "Please enter Make.";
+                                    ErrFlg = true;
+                                }
+                                if (string.IsNullOrWhiteSpace(dtInventory.Rows[r]["Model"].ToString()) == true)
+                                {
+                                    ErrorMsg += "Please enter Model.";
+                                    ErrFlg = true;
+                                }
+                                if (dtInventory.Rows[r]["DefineScope"].ToString().Length > 100)
+                                {
+                                    ErrorMsg += "Define Scope length should not exceed 50 characters.";
+                                    ErrFlg = true;
+                                }
+                                break;
+                                //End - Infra Inventory P2 Changes
+
+                        }
+
+                        #endregion validation
+
+                        if (ErrFlg == true)
+                        {
+                            dtInventory.Rows[r]["IsAdd"] = 0;
+                            dtInventory.Rows[r]["ErrorMsg"] = ErrorMsg;
+
+                            //int colCount = 1;
+                            //foreach (object col in dtInventory.Rows[r].ItemArray)
+                            //{
+                            //    sheet.Cells[AddRow, colCount].Value = col.ToString();
+                            //    colCount++;
+                            //}
+                            //dtInventory.Rows[r].Delete();
+                            //dtInventory.AcceptChanges();
+
+
+                            //for (int i = AddRow; i > 1; i--)
+                            //{
+                            //    if (string.IsNullOrWhiteSpace(Convert.ToString(sheet.Cells[i, dtInventory.Columns.Count + 1].Value)) == true)
+                            //        sheet.DeleteRow(i);
+                            //}
+
+                            //IsError = true;
+                            //sheetrow++;
+                            //if (dtInventory.Rows.Count != r)
+                            //    r--;
+                            //AddRow++;
+                        }
+                        else
+                        {
+                            dtInventory.Rows[r]["IsAdd"] = 1;
+                            dtInventory.Rows[r]["ErrorMsg"] = ErrorMsg;
+                            //    sheet.DeleteRow(sheetrow);
+                            //    if (sheetrow <= 2)
+                            //        sheetrow = 2;
+                        }
+                    }
+
+                    //if (r == dtInventory.Rows.Count)
+                    //{
+                    //    sheet.DeleteRow(sheetrow++);
+                    //}
+
+                }
+
+                DataSet ValidDataSet = new DataSet();
+                int count = 0;
+                foreach (DataTable dtInventory in ds4Inventory.Tables)
+                {
+                    if (dtInventory.Rows.Count > 0)
+                    {
+                        DataRow[] dtRow = dtInventory.Select("IsAdd = 1");
+                        if (dtRow.Length > 0)
+                        {
+                            ValidDataSet.Tables.Add(dtRow.CopyToDataTable());
+                        }
+                        else
+                        {
+                            ValidDataSet.Tables.Add(dtInventory.Clone());
+                        }
+
+                    }
+                    else
+                    {
+                        ValidDataSet.Tables.Add(dtInventory.Copy());
+                    }
+                    ValidDataSet.Tables[count].TableName = dtInventory.TableName;
+                    ValidDataSet.Tables[count].Columns.Remove("IsAdd");
+                    ValidDataSet.Tables[count].Columns.Remove("ErrorMsg");
+                    count++;
+                }
+                DataSet ErrorDataSet = new DataSet();
+                count = 0;
+                foreach (DataTable dtInventory in ds4Inventory.Tables)
+                {
+                    if (dtInventory.Rows.Count > 0)
+                    {
+                        DataRow[] dtRow = dtInventory.Select("IsAdd = 0");
+                        if (dtRow.Length > 0)
+                        {
+                            ErrorDataSet.Tables.Add(dtRow.CopyToDataTable());
+                        }
+                        else
+                        {
+                            ErrorDataSet.Tables.Add(dtInventory.Clone());
+                        }
+
+                    }
+                    else
+                    {
+                        ErrorDataSet.Tables.Add(dtInventory.Copy());
+                    }
+                    ErrorDataSet.Tables[count].TableName = dtInventory.TableName;
+                    ErrorDataSet.Tables[count].Columns.Remove("IsAdd");
+                    count++;
+                }
+                #region comments
+                //foreach (DataTable dtInventory in ValidDataSet.Tables)
+                //{
+                //    ////START - Add new line of Code regarding FAR Bug ##10610
+                //    //for (int Dtrow = 0; Dtrow < dtInventory.Rows.Count; Dtrow++)
+                //    //{
+                //    //    if (dtInventory.Rows.Count > 0)
+                //    //    {
+                //    //        if (dtInventory.TableName.Contains("InventoryDesktopDetailType"))
+                //    //        {
+                //    //            if (string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["TagNumber"].ToString()) || dtInventory.Rows[Dtrow]["TagNumber"].ToString().Length != Convert.ToInt32(TagNumber)
+                //    //                || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["SerialNumber"].ToString()) || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["AllocationTypeID"].ToString())
+                //    //                || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["MakeDesktopID"].ToString()) || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["Processor"].ToString())
+                //    //                || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["PurchasedOS"].ToString()) || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["StockStatusDesktopID"].ToString())
+                //    //                )
+                //    //                dtInventory.Rows[Dtrow].Delete();
+                //    //        }
+                //    //        else if (dtInventory.TableName.Contains("InventoryNetworkDetailType"))
+                //    //        {
+                //    //            if (
+                //    //                string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["TagNumber"].ToString()) || dtInventory.Rows[Dtrow]["TagNumber"].ToString().Length != Convert.ToInt32(TagNumber) || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["SerialNumber"].ToString())
+                //    //                || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["SiteName"].ToString()) || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["MakeNetworkID"].ToString())
+                //    //                || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["ModelSize"].ToString()) || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["Processname"].ToString())
+                //    //                || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["SharedDedicatedID"].ToString()) || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["StockStatusNetworkID"].ToString())
+                //    //                || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["DeviceSupportID"].ToString()) || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["DefineScope"].ToString())
+                //    //                || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["EndoflifeofdeviceID"].ToString())
+                //    //              )
+                //    //                dtInventory.Rows[Dtrow].Delete();
+                //    //        }
+                //    //        else if (dtInventory.TableName.Contains("InventoryTelecomDetailType"))
+                //    //        {
+                //    //            if (
+                //    //                string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["TagNumber"].ToString()) || dtInventory.Rows[Dtrow]["TagNumber"].ToString().Length != Convert.ToInt32(TagNumber) || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["SerialNumber"].ToString())
+                //    //                || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["HostName"].ToString()) || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["MakeTelecomID"].ToString())
+                //    //                || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["ModelTelecom"].ToString()) || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["StockStatusTelecomID"].ToString())
+                //    //                || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["DeviceLifeTelecomID"].ToString())
+                //    //              )
+                //    //                dtInventory.Rows[Dtrow].Delete();
+                //    //        }
+
+                //    //        else if (dtInventory.TableName.Contains("InventoryLaptopDetailType"))
+                //    //        {
+                //    //            if (
+                //    //                string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["TagNumber"].ToString()) || dtInventory.Rows[Dtrow]["TagNumber"].ToString().Length != Convert.ToInt32(TagNumber) || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["SerialNumber"].ToString())
+                //    //                || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["EmployeeID"].ToString()) || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["EmployeeName"].ToString())
+                //    //                || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["Make"].ToString()) || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["Model"].ToString())
+                //    //                || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["BadgeID"].ToString()) || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["IssueDate"].ToString())
+                //    //                || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["ExpectedReturnDate"].ToString())
+                //    //                ||
+                //    //                (Convert.ToDateTime(dtInventory.Rows[Dtrow]["IssueDate"].ToString()) > Convert.ToDateTime(dtInventory.Rows[Dtrow]["ExpectedReturnDate"].ToString()))
+                //    //                )
+                //    //                dtInventory.Rows[Dtrow].Delete();
+                //    //        }
+
+                //    //        else if (dtInventory.TableName.Contains("InventoryServerDetailType"))
+                //    //        {
+                //    //            if (
+                //    //                string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["TagNumber"].ToString()) || dtInventory.Rows[Dtrow]["TagNumber"].ToString().Length != Convert.ToInt32(TagNumber) || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["SerialNumber"].ToString())
+                //    //                || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["AcquistionDate"].ToString()) || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["ServerName"].ToString())
+                //    //                || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["ServerStatusID"].ToString()) || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["Type"].ToString())
+                //    //                || string.IsNullOrWhiteSpace(dtInventory.Rows[Dtrow]["OS"].ToString())
+                //    //                )
+                //    //                dtInventory.Rows[Dtrow].Delete();
+                //    //        }
+
+                //    //        dtInventory.AcceptChanges();
+                //    //    }
+                //    //}
+                //    ////END - Add new line of Code regarding FAR Bug ##10610
+                //}
+                #endregion
+                using (var p = new ExcelPackage(new FileInfo(AppDomain.CurrentDomain.BaseDirectory.ToString() + "Resources/Templates/TemplateError.xlsx")))
+                {
+                    foreach (DataTable dtInventory in ErrorDataSet.Tables)
+                    {
+                        dtInventory.Columns.Remove("PoId");
+                        dtInventory.Columns.Remove("TAGCount");
+                        dtInventory.Columns.Remove("MinorSubCategory");
+                        dtInventory.Columns.Remove("Description");
+
+                        var sheet = p.Workbook.Worksheets[dtInventory.TableName];
+                        int AddRow = 2;
+                        foreach (DataRow drError in dtInventory.Rows)
+                        {
+                            int colCount = 1;
+                            foreach (object col in drError.ItemArray)
+                            {
+                                sheet.Cells[AddRow, colCount].Value = col.ToString();
+                                IsError = true;
+                                colCount++;
+                            }
+                            AddRow++;
+                        }
+                    }
+                    foreach (DataTable dtInventory in ValidDataSet.Tables)
+                    {
+                        dtInventory.TableName = "Inventory" + dtInventory.TableName + "DetailType";
+                    }
+
+                    #endregion c
+                    IInventoryFacade objIManageInventoryFacade = new InventoryFacade();
+                    //START - Add new line of Code regarding FAR Bug ##10610
+                    returnInventoryEntity = objIManageInventoryFacade.AddBulkInventory(objInventoryEntity, ValidDataSet);
+                    //END - Add new line of Code regarding FAR Bug ##10610
+
+                    #region afetr databse hit
+
+                    if (IsError == true)
+                    {
+                        filename = DateTime.Now.ToString("dd.MMM.yyyy hh.mm.ss");
+                        p.SaveAs(new FileInfo(AppDomain.CurrentDomain.BaseDirectory.ToString() + "Resources/Templates/" + filename + ".xlsx"));
+
+                        InventoryEntity objreturnInventoryEntity = new InventoryEntity();
+                        objreturnInventoryEntity.StatusCode = "300";
+                        //objreturnInventoryEntity.Msg = "Given excel file not in proper format/some error. Please check downloaded excel file. And " + returnInventoryEntity.Msg;
+                        objreturnInventoryEntity.Msg = "Given excel file not in proper format/some error. Please check downloaded excel file.";
+                        objreturnInventoryEntity.ExportFileName = filename;
+                        throw new HttpResponseException(Request.CreateErrorResponse(HttpStatusCode.BadRequest, objreturnInventoryEntity.Msg + "#2#" + objreturnInventoryEntity.ExportFileName));
+                    }
+                    else if (returnInventoryEntity.Msg.Contains("Success") == false && IsError == false)
+                    {
+                        #region a
+                        string errorPath = System.Web.Configuration.WebConfigurationManager.AppSettings["FileError"];
+                        string errorPathDes = System.Web.Configuration.WebConfigurationManager.AppSettings["FileSave"];
+                        // swati
+                        string fileName = "Error_" + DateTime.Today.Ticks + "_" + DateTime.Now.ToUniversalTime() + ".xlsx";
+                        fileName = fileName.Replace("/", "").Replace(":", "").Replace(" ", "");
+                        string despath = errorPathDes + fileName;
+
+                        File.Copy(errorPath, despath);
+
+                        FileInfo newFile = new FileInfo(despath);
+                        using (ExcelPackage pck = new ExcelPackage(newFile))
+                        {
+                            if (returnInventoryEntity.dtError != null)
+                            {
+                                if (returnInventoryEntity.dtError.Rows.Count > 0)
+                                {
+                                    ExcelWorksheet ws = pck.Workbook.Worksheets.Add("Desktop");
+                                    ws.Cells["A1"].LoadFromDataTable(returnInventoryEntity.dtError, true);
+                                    pck.Save();
+
+                                    var worksheet = pck.Workbook.Worksheets.SingleOrDefault(x => x.Name == "sheet1");
+                                    pck.Workbook.Worksheets.Delete(worksheet);
+                                    pck.Save();
+                                }
+                            }
+
+                            if (returnInventoryEntity.dtErrorL != null)
+                            {
+                                if (returnInventoryEntity.dtErrorL.Rows.Count > 0)
+                                {
+                                    ExcelWorksheet ws = pck.Workbook.Worksheets.Add("Laptop");
+                                    ws.Cells["A1"].LoadFromDataTable(returnInventoryEntity.dtErrorL, true);
+                                    pck.Save();
+
+                                    var worksheet = pck.Workbook.Worksheets.SingleOrDefault(x => x.Name == "sheet1");
+
+                                    if (returnInventoryEntity.dtError == null && returnInventoryEntity.dtErrorN == null && returnInventoryEntity.dtErrorS == null && returnInventoryEntity.dtErrorT == null && returnInventoryEntity.dtErrorI == null)
+                                        pck.Workbook.Worksheets.Delete(worksheet); // Comment code regarding bug fix - Bug Id 12012
+                                    pck.Save();
+                                }
+                            }
+
+                            if (returnInventoryEntity.dtErrorN != null)
+                            {
+                                if (returnInventoryEntity.dtErrorN.Rows.Count > 0)
+                                {
+                                    ExcelWorksheet ws = pck.Workbook.Worksheets.Add("Network");
+                                    ws.Cells["A1"].LoadFromDataTable(returnInventoryEntity.dtErrorN, true);
+
+                                    var worksheet = pck.Workbook.Worksheets.SingleOrDefault(x => x.Name == "sheet1");
+
+                                    if (returnInventoryEntity.dtError == null && returnInventoryEntity.dtErrorL == null && returnInventoryEntity.dtErrorS == null && returnInventoryEntity.dtErrorT == null && returnInventoryEntity.dtErrorI == null)
+                                        pck.Workbook.Worksheets.Delete(worksheet); //Comment code regarding bug fix - Bug Id 12012
+                                    pck.Save();
+                                }
+                            }
+
+                            if (returnInventoryEntity.dtErrorS != null)
+                            {
+                                if (returnInventoryEntity.dtErrorS.Rows.Count > 0)
+                                {
+                                    ExcelWorksheet ws = pck.Workbook.Worksheets.Add("Server");
+                                    ws.Cells["A1"].LoadFromDataTable(returnInventoryEntity.dtErrorS, true);
+
+                                    var worksheet = pck.Workbook.Worksheets.SingleOrDefault(x => x.Name == "sheet1");
+
+                                    if (returnInventoryEntity.dtError == null && returnInventoryEntity.dtErrorL == null && returnInventoryEntity.dtErrorN == null && returnInventoryEntity.dtErrorT == null && returnInventoryEntity.dtErrorI == null)
+                                        pck.Workbook.Worksheets.Delete(worksheet); //Comment code regarding bug fix - Bug Id 12012
+                                    pck.Save();
+                                }
+                            }
+
+                            if (returnInventoryEntity.dtErrorT != null)
+                            {
+                                if (returnInventoryEntity.dtErrorT.Rows.Count > 0)
+                                {
+                                    ExcelWorksheet ws = pck.Workbook.Worksheets.Add("Telecom");
+                                    ws.Cells["A1"].LoadFromDataTable(returnInventoryEntity.dtErrorT, true);
+
+                                    var worksheet = pck.Workbook.Worksheets.SingleOrDefault(x => x.Name == "sheet1");
+
+                                    if (returnInventoryEntity.dtError == null && returnInventoryEntity.dtErrorL == null && returnInventoryEntity.dtErrorN == null && returnInventoryEntity.dtErrorS == null && returnInventoryEntity.dtErrorI == null)
+                                        pck.Workbook.Worksheets.Delete(worksheet); //Comment code regarding bug fix - Bug Id 12012
+                                    pck.Save();
+                                }
+                            }
+
+                            //Start - Infra Inventory P2 Changes
+                            if (returnInventoryEntity.dtErrorI != null)
+                            {
+                                if (returnInventoryEntity.dtErrorI.Rows.Count > 0)
+                                {
+                                    ExcelWorksheet ws = pck.Workbook.Worksheets.Add("Infra");
+                                    ws.Cells["A1"].LoadFromDataTable(returnInventoryEntity.dtErrorI, true);
+
+                                    var worksheet = pck.Workbook.Worksheets.SingleOrDefault(x => x.Name == "sheet1");
+
+                                    if (returnInventoryEntity.dtError == null && returnInventoryEntity.dtErrorL == null && returnInventoryEntity.dtErrorN == null && returnInventoryEntity.dtErrorS == null && returnInventoryEntity.dtErrorT == null)
+                                        pck.Workbook.Worksheets.Delete(worksheet); //Comment code regarding bug fix - Bug Id 12012
+                                    pck.Save();
+                                }
+                            }
+                            //End - Infra Inventory P2 Changes
+
+                        }
+
+                        returnInventoryEntity.URLError = fileName;
+                        #endregion a
+                    }
+
+                    #endregion afetr databse hit
+
+                    #region comment
+                    //else if (returnInventoryEntity.Msg.Contains("Data Save Successfully.") == false && IsError == false)
+                    //{
+                    //    InventoryEntity objreturnInventoryEntity = new InventoryEntity();
+                    //    string errormsg = string.Empty;
+                    //    objreturnInventoryEntity.StatusCode = "300";
+                    //    objreturnInventoryEntity.Msg = returnInventoryEntity.Msg;
+
+                    //    if (returnInventoryEntity.Msg.Contains("Data Save Successfully.") == false)
+                    //    {
+                    //        if (returnInventoryEntity.Msg.Contains("converting date and/or time from character string"))
+                    //        {
+                    //            errormsg = "Please insert Date in DD-MMM-YYYY format. Error while converting date and/or time from character string.#2#";
+                    //        }
+                    //        else
+                    //        {
+                    //            errormsg = objreturnInventoryEntity.Msg + "#2#";
+                    //        }
+                    //        filename = fName.Replace(extn, "");
+                    //    }
+                    //    else
+                    //    {
+                    //        filename = DateTime.Now.ToString("dd.MMM.yyyy hh.mm.ss");
+                    //        p.SaveAs(new FileInfo(AppDomain.CurrentDomain.BaseDirectory.ToString() + "Resources/Templates/" + filename + ".xlsx"));
+                    //        errormsg = objreturnInventoryEntity.Msg + "#2#";
+                    //    }
+                    //    objreturnInventoryEntity.ExportFileName = filename;
+                    //    errormsg += objreturnInventoryEntity.ExportFileName;
+
+                    //    throw new HttpResponseException(Request.CreateErrorResponse(HttpStatusCode.BadRequest, errormsg));
+                    //}
+                    #endregion comment
+                }
+
+            }
+            return returnInventoryEntity;
+        }
+
+        #endregion
+
+
+        #region Region Data Migration Upload Inventory
+
+        ///// <summary>
+        ///// Upload Inventroy Data
+        ///// </summary>
+        ///// <returns></returns>
+        //[AcceptVerbs("GET", "POST")]
+        //[Route("FAR/BulkInventory/UploadInventory")]
+        //public InventoryEntity UploadInventory()
+        //{
+        //    InventoryEntity returnInventoryEntity = new InventoryEntity();
+        //    string fName = string.Empty;
+        //    string extn = string.Empty;
+        //    SessionData requestSessionData = new SessionData();
+        //    var headers = Request.Headers;
+        //    if (headers.Contains("Authorization"))
+        //    {
+        //        string authenticationHeaderVal = headers.GetValues("Authorization").First();
+        //        string SessionData = EncryptionDecryptionStandard.DecryptionJsonByType(authenticationHeaderVal, FARSalt);
+        //        SessionDataController sessionData = new JavaScriptSerializer().Deserialize<SessionDataController>(SessionData);
+
+        //        InventoryEntity objInventoryEntity = new InventoryEntity();
+        //        objInventoryEntity.RecCreatedBy = sessionData.EmplId;
+        //        objInventoryEntity.UserID = Convert.ToInt64(sessionData.UserID);
+        //        objInventoryEntity.RoleID = Convert.ToInt32(sessionData.RoleID);
+        //        objInventoryEntity.Emplid = Convert.ToInt64(sessionData.EmplId);
+
+
+
+
+        //        #region file
+        //        foreach (string fileName in HttpContext.Current.Request.Files)
+        //        {
+        //            HttpPostedFile file = HttpContext.Current.Request.Files.Get(fileName);
+        //            string f_Name = file.FileName;
+        //            if (file != null && file.ContentLength > 0)
+        //            {
+        //                if (Path.GetExtension(f_Name) == ".xlsx" || Path.GetExtension(f_Name) == ".xls")
+        //                {
+        //                    try
+        //                    {
+        //                        extn = Path.GetExtension(f_Name);
+        //                        fName = f_Name;
+        //                        string FileNm = pathToSave + fName;
+
+        //                        file.SaveAs(FileNm);
+
+        //                        ExcelPackage package = new ExcelPackage(file.InputStream);
+        //                        ds4Inventory = package.ToDataSet();
+        //                    }
+        //                    catch (Exception)
+        //                    {
+        //                        throw new HttpResponseException(Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Invalid template.#0"));
+        //                        //returnInventoryEntity.Msg= "Invalid template.";
+        //                        //return;
+        //                    }
+        //                }
+        //                else
+        //                {
+        //                    throw new HttpResponseException(Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Please upload '.xlsx / .xls' file only.#0"));
+        //                    //returnInventoryEntity.Msg = "Please upload '.xlsx / .xls' file only.";
+        //                    //return;
+        //                }
+        //            }
+        //        }
+        //        #endregion file
+        //        ds4Inventory.Tables.RemoveAt(5);//Remove SubMinorCategory DataTable
+        //        foreach (DataTable dtInv in ds4Inventory.Tables)
+        //        {
+        //            //dtInv.Columns.Add("IsAdd");
+        //            //dtInv.Columns.Add("ErrorMsg");
+
+        //            dtInv.Columns.Add("PoId", typeof(string)).SetOrdinal(1);
+        //            dtInv.Columns.Add("TAGCount", typeof(string)).SetOrdinal(6);
+        //            dtInv.Columns.Add("MinorSubCategory", typeof(string)).SetOrdinal(9);
+        //            dtInv.Columns.Add("Description", typeof(string)).SetOrdinal(10);
+
+        //            ExcelPackageExtensions.GetDataTableHeader(dtInv);
+        //        }
+
+
+
+
+        //            foreach (DataTable dtInventory in ds4Inventory.Tables)
+        //            {
+        //                dtInventory.TableName = "Inventory" + dtInventory.TableName + "DetailType";
+        //            }
+
+        //            IInventoryFacade objIManageInventoryFacade = new InventoryFacade();
+        //            //START - Add new line of Code regarding FAR Bug ##10610
+        //            returnInventoryEntity = objIManageInventoryFacade.AddBulkInventory(objInventoryEntity, ds4Inventory);
+        //            //END - Add new line of Code regarding FAR Bug ##10610
+
+        //    }
+        //    return returnInventoryEntity;
+        //}
+
+        #endregion
+
+
+        /// <summary>
+        /// Download Inventory Template.
+        /// </summary>
+        /// <param name="prefixText"></param>
+        /// <returns></returns>
+        [AcceptVerbs("GET", "POST")]
+        [Route("FAR/BulkInventory/DownloadInventory")]
+        public string DownloadInventory([FromBody] InventoryEntity prefixText)
+        {
+            string filename = string.Empty;
+            try
+            {
+                List<InventoryEntity> InventoryResult = new List<InventoryEntity>();
+
+                SessionDataController requestSessionData = new SessionDataController();
+                var headers = Request.Headers;
+                DataSet ds4Inventory = new DataSet();
+
+                if (headers.Contains("Authorization"))
+                {
+                    string authenticationHeaderVal = headers.GetValues("Authorization").First();
+                    string SessionData = EncryptionDecryptionStandard.DecryptionJsonByType(authenticationHeaderVal, FARSalt);
+                    requestSessionData = new JavaScriptSerializer().Deserialize<SessionDataController>(SessionData);
+                    IInventoryFacade objIManageInventoryFacade = new InventoryFacade();
+                    InventoryResult = objIManageInventoryFacade.GetMainInventory(prefixText);
+
+                    ds4Inventory.Tables.Add(InventoryResult.First().dtInventoryDesktopDetailEntity);
+                    ds4Inventory.Tables[0].TableName = "InventoryDesktopDetailType";
+                    ds4Inventory.Tables.Add(InventoryResult.First().dtInventoryLaptopDetailEntity);
+                    ds4Inventory.Tables[1].TableName = "InventoryLaptopDetailType";
+                    ds4Inventory.Tables.Add(InventoryResult.First().dtInventoryNetworkDetailEntity);
+                    ds4Inventory.Tables[2].TableName = "InventoryNetworkDetailType";
+                    ds4Inventory.Tables.Add(InventoryResult.First().dtInventoryServerDetailEntity);
+                    ds4Inventory.Tables[3].TableName = "InventoryServerDetailType";
+                    ds4Inventory.Tables.Add(InventoryResult.First().dtInventoryTelecomDetailEntity);
+                    ds4Inventory.Tables[4].TableName = "InventoryTelecomDetailType";
+
+                    //Start - Infra Inventory P2 Changes
+                    ds4Inventory.Tables.Add(InventoryResult.First().dtInventoryInfraDetailEntity);
+                    ds4Inventory.Tables[5].TableName = "InventoryInfraDetailType";
+                    //End - Infra Inventory P2 Changes
+
+                }
+
+                using (var p = new ExcelPackage(new FileInfo(AppDomain.CurrentDomain.BaseDirectory.ToString() + "Resources/Templates/Template.xlsx")))
+                {
+                    foreach (DataTable DtTemp in ds4Inventory.Tables)
+                    {
+
+                        if (DtTemp.Rows.Count > 0)
+                        {
+                            string sheetName = DtTemp.TableName.ToString().Replace("Inventory", "").Replace("DetailType", "");
+                            var sheet = p.Workbook.Worksheets[sheetName];
+                            //int m = 0;
+                            int q = 0;
+                            //for (int r = 0; r < DtTemp.Rows.Count; r++)
+                            //{
+                                q += DtTemp.Rows.Count;
+                                for (int r = 0; r < q; r++)
+                                {
+                                    sheet.Cells[r + 2, 1].Value = prefixText.PoNumber;
+                                    sheet.Cells[r + 2, 2].Value = DtTemp.Rows[r]["PODate"].ToString();
+                                    sheet.Cells[r + 2, 3].Value = DtTemp.Rows[r]["GRNNumber"].ToString();
+                                    sheet.Cells[r + 2, 4].Value = DtTemp.Rows[r]["GRNDate"].ToString();
+                                    sheet.Cells[r + 2, 5].Value = DtTemp.Rows[r]["ItemCode"].ToString();
+
+                                    sheet.Cells[r + 2, 6].Value = DtTemp.Rows[r]["MAJOR_CATEGORY"].ToString();
+
+                                    sheet.Cells[r + 2, 7].Value = DtTemp.Rows[r]["MINOR_CATEGORY"].ToString();
+
+                                    sheet.Cells[r + 2, 8].Value = DtTemp.Rows[r]["VendorName"].ToString();
+                                    sheet.Cells[r + 2, 9].Value = DtTemp.Rows[r]["TAG_TYPE"].ToString();
+
+                                    sheet.Cells[r + 2, 10].Value = DtTemp.Rows[r]["ASSET_TYPE"].ToString();
+
+                                    sheet.Cells[r + 2, 11].Value = DtTemp.Rows[r]["EXP_TYPE"].ToString() == "C" ? "CAPEX" : "OPEX";
+
+                                    if (DtTemp.TableName == "InventoryDesktopDetailType")
+
+                                    {
+                                    sheet.Cells[r + 2, 44].Value = DtTemp.Rows[r]["TAGNumber"].ToString();
+                                    sheet.Cells[r + 2, 45].Value = DtTemp.Rows[r]["DateOfAcquisition"].ToString();
+                                    sheet.Cells[r + 2, 46].Value = DtTemp.Rows[r]["Location"].ToString();
+                                    }
+
+                                    else if (DtTemp.TableName == "InventoryLaptopDetailType")
+
+                                    {
+                                    sheet.Cells[r + 2, 27].Value = DtTemp.Rows[r]["TAGNumber"].ToString();
+                                    sheet.Cells[r + 2, 28].Value = DtTemp.Rows[r]["DateOfAcquisition"].ToString();
+                                    sheet.Cells[r + 2, 29].Value = DtTemp.Rows[r]["Location"].ToString();
+
+                                    }
+
+                                    else if (DtTemp.TableName == "InventoryNetworkDetailType")
+
+                                    {
+                                    sheet.Cells[r + 2, 27].Value = DtTemp.Rows[r]["TAGNumber"].ToString();
+                                    sheet.Cells[r + 2, 28].Value = DtTemp.Rows[r]["DateOfAcquisition"].ToString();
+                                    sheet.Cells[r + 2, 29].Value = DtTemp.Rows[r]["Location"].ToString();
+
+                                    }
+
+                                    else if (DtTemp.TableName == "InventoryServerDetailType")
+
+                                    {
+                                    sheet.Cells[r + 2, 27].Value = DtTemp.Rows[r]["TAGNumber"].ToString();
+                                    sheet.Cells[r + 2, 28].Value = DtTemp.Rows[r]["DateOfAcquisition"].ToString();
+                                    sheet.Cells[r + 2, 29].Value = DtTemp.Rows[r]["Location"].ToString();
+
+                                    }
+
+                                    else if (DtTemp.TableName == "InventoryTelecomDetailType")
+
+                                    {
+                                    sheet.Cells[r + 2, 19].Value = DtTemp.Rows[r]["TAGNumber"].ToString();
+                                    sheet.Cells[r + 2, 20].Value = DtTemp.Rows[r]["DateOfAcquisition"].ToString();
+                                    sheet.Cells[r + 2, 21].Value = DtTemp.Rows[r]["Location"].ToString();
+
+                                    }
+
+                                    //Start - Infra Inventory P2 Changes
+                                    else if (DtTemp.TableName == "InventoryInfraDetailType")
+                                    {
+                                    sheet.Cells[r + 2, 24].Value = DtTemp.Rows[r]["TAGNumber"].ToString();
+                                    sheet.Cells[r + 2, 25].Value = DtTemp.Rows[r]["DateOfAcquisition"].ToString();
+                                    sheet.Cells[r + 2, 26].Value = DtTemp.Rows[r]["Location"].ToString();
+                                    }
+                                    //End - Infra Inventory P2 Changes
+
+
+                                }
+                            //}
+
+
+                        }
+                    }
+
+                    filename = requestSessionData.EmplId + DateTime.Now.ToString("dd.MMM.yyyy hh.mm.ss");
+                    p.SaveAs(new FileInfo(AppDomain.CurrentDomain.BaseDirectory.ToString() + "Resources/Templates/" + filename + ".xlsx"));
+                }
+                return filename;
+            }
+            catch (Exception ex)
+            {
+                return "";
+            }
+            finally
+            {
+
+            }
+        }
+    }
+
+    public static class ExcelPackageExtensions
+    {
+        public static DataSet ToDataSet(this ExcelPackage package)
+        {
+            DataSet set = new DataSet();
+
+            foreach (ExcelWorksheet workSheet in package.Workbook.Worksheets)
+            {
+                DataTable table = new DataTable();
+                table.TableName = workSheet.Name;
+                foreach (var firstRowCell in workSheet.Cells[1, 1, 1, workSheet.Dimension.End.Column])
+                {
+                    table.Columns.Add(firstRowCell.Text.Trim().Replace(' ', '_'));
+                }
+
+                for (var rowNumber = 2; rowNumber <= workSheet.Dimension.End.Row; rowNumber++)
+                {
+                    var row = workSheet.Cells[rowNumber, 1, rowNumber, table.Columns.Count];
+                    var newRow = table.NewRow();
+                    foreach (var cell in row)
+                    {
+                        newRow[cell.Start.Column - 1] = cell.Text;
+                    }
+
+                    if (CheckEmptyRow(newRow) == false)
+                        table.Rows.Add(newRow);
+                }
+                set.Tables.Add(table);
+            }
+            return set;
+        }
+
+        private static bool CheckEmptyRow(DataRow dr)
+        {
+            StringBuilder sb = new StringBuilder();
+            foreach (object col in dr.ItemArray)
+            {
+                if (string.IsNullOrWhiteSpace(col.ToString()))
+                {
+                    sb.Append("Yes,");
+                }
+            }
+            if (sb.ToString().Split(new char[] { ',' }, System.StringSplitOptions.RemoveEmptyEntries).Count() == dr.ItemArray.Count())
+                return true;
+            else
+                return false;
+        }
+
+        #region Trim Data Table Header
+        public static void GetDataTableHeader(DataTable dtInventory)
+        {
+            string inventoryType = "";
+
+            inventoryType = dtInventory.TableName;//dsInventoryType.Tables["Desktop"].ToString();
+            switch (inventoryType)
+            {
+                case "Desktop":
+                    foreach (DataColumn column in dtInventory.Columns)
+                    {
+                        column.ColumnName = column.ColumnName.Replace("_", "").Trim();//column.ColumnName.Trim();
+                    }
+                    break;
+                case "Network":
+                    foreach (DataColumn column in dtInventory.Columns)
+                    {
+                        column.ColumnName = column.ColumnName.Replace("_", "").Trim();//column.ColumnName.Trim();
+                    }
+                    break;
+                case "Telecom":
+                    foreach (DataColumn column in dtInventory.Columns)
+                    {
+                        column.ColumnName = column.ColumnName.Replace("_", "").Trim();//column.ColumnName.Trim();
+                    }
+                    break;
+                case "Laptop":
+                    foreach (DataColumn column in dtInventory.Columns)
+                    {
+                        column.ColumnName = column.ColumnName.Replace("_", "").Trim();//column.ColumnName.Trim();
+                    }
+                    break;
+                case "Server":
+                    foreach (DataColumn column in dtInventory.Columns)
+                    {
+                        column.ColumnName = column.ColumnName.Replace("_", "").Trim();//column.ColumnName.Trim();
+                    }
+                    break;
+                //Start - Infra Inventory P2 Changes
+                case "Infra":
+                    foreach (DataColumn column in dtInventory.Columns)
+                    {
+                        column.ColumnName = column.ColumnName.Replace("_", "").Trim();//column.ColumnName.Trim();
+                    }
+                    break;
+                //End - Infra Inventory P2 Changes
+
+                default:
+                    break;
+            }
+
+        }
+        #endregion
+
+        public static bool CheckDate(String date)
+        {
+            try
+            {
+                DateTime dt = DateTime.Parse(date);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+}
