@@ -1,0 +1,26 @@
+Laptop->
+
+
+Po Number	Po Date	GRN Number	GRN Date	Item Code	Major Category	Minor Category	Manufacturer Name	TaggableTypeID	AssetTypeID	ExpTypeID	Employee ID	Employee Name	Host Name	Make	Model	StockStatusLaptopID	BadgeID	RAM	AllocationTypeLaptopID	Issue Date	Expected Return Date	Warranty Start	Warranty End	IsReturned	Serial Number	TAG Number	Date of Acquisition	Location	Sub Location	Sub Minor Category	Property Code	Remark
+																																
+desktop->
+
+Po Number	Po Date	GRN Number	GRN Date	Item Code	Major Category	Minor Category	Manufacturer Name	TaggableTypeID	AssetTypeID	ExpTypeID	Dual Host name	Desk ID	IP Address	Make	Model Size	Processor	RAM	Hard Disk	Domain Name	SharedDedicated	Project	Location1	Wing	Asset ID	Installed Operating System	Purchased OS	MS Office	OCS Client	Acrobat Reader	Winzip	Antivirus	Other Software	Warranty Start	Warranty End	Age Spend	Physical Verification	StockStatusDesktopID	BOND	Host name	AllocationTypeID	SystemAssetID	Serial Number	Tag Number	Date of Acquisition	Location	Sub Location	Sub Minor Category	Remark
+
+
+network->
+Po Number	Po Date	GRN Number	GRN Date	Item Code	Major Category	Minor Category	Manufacturer Name	TaggableTypeID	AssetTypeID	ExpTypeID	Make	Model	StockStatusNetworkID	Device Life	Define Scope	EndoflifeofdeviceID	DeviceSupportID	Model Size	Process name	SharedDedicatedID	SystemAssetID	IP Address	Site Name	Asset Type Network ID	Serial Number	TAG Number	Date of Acquisition	Location	Sub Location	Sub Minor Category	Remark
+
+
+telecom->
+
+Po Number	Po Date	GRN Number	GRN Date	Item Code	Major Category	Minor Category	Manufacturer Name	TaggableTypeID	AssetTypeID	ExpTypeID	Host Name	Make	ModelTelecom	DeviceLifeTelecomID	StockStatusTelecomID	Asset Type Telecom ID	Serial Number	TAG Number	Date of Acquisition	Location	Sub Location	Sub Minor Category	Remark
+
+
+server->
+Po Number	Po Date	GRN Number	GRN Date	Item Code	Major Category	Minor Category	Manufacturer Name	TaggableTypeID	AssetTypeID	ExpTypeID	Server Name	Surver Usage	Surver Domain	Server Role	Asset	Asset No	Environment	ServerStatusID	Product	Type	Type No	OS Type	OS	No Of Processor	Serial Number	TAG Number	Date of Acquisition	Location	Sub Location	Sub Minor Category	Remark
+
+
+
+infra->
+Po Number	Po Date	GRN Number	GRN Date	Item Code	Major Category	Minor Category	Manufacturer Name	TaggableTypeID	AssetTypeID	ExpTypeID	Site Name	Inventory Asset Type	Host Name	Process Name	IP Address	Make	Model	Shared Dedicated	Define Scope	Device Support	Stock Status	Serial Number	TAG Number	Date of Acquisition	Location	Sub Location	Sub Minor Category	Remark
