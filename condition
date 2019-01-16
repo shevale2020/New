@@ -1,0 +1,5 @@
+isnull(ICD.AssetID,'')!= A.AssetNumber
+
+
+
+ya condition cha meaning sang kay ahe te
