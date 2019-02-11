@@ -1,0 +1,86 @@
+
+
+CREATE TABLE [dbo].[DDL1](
+	[ID] [int] IDENTITY(1,1) NOT NULL,
+	[DDLColumn1] [nvarchar](50) NULL,
+	
+) ON [PRIMARY]
+
+
+
+
+CREATE TABLE [dbo].[DDL2](
+	[ID] [int] IDENTITY(1,1) NOT NULL,
+	[DDLColumn2] [nvarchar](50) NULL,
+	
+) ON [PRIMARY]
+
+
+
+CREATE TABLE [dbo].[DDL3](
+	[ID] [int] IDENTITY(1,1) NOT NULL,
+	[DDLColumn3] [nvarchar](50) NULL,
+	
+) ON [PRIMARY]
+
+insert into DDL1 values
+('Sam')
+insert into DDL1 values
+('Ram')
+
+insert into DDL2 values
+('RED')
+insert into DDL2 values
+('Blue')
+insert into DDL2 values
+('Orange')
+insert into DDL2 values
+('White')
+insert into DDL2 values
+('Greem')
+
+
+insert into DDL3 values
+('India')
+insert into DDL3 values
+('US')
+insert into DDL3 values
+('Chaina')
+insert into DDL3 values
+('Uk')
+
+
+--here we select three differnt column from three table 
+
+select isnull(DDlColumn1,'') as DDlColumn1, isnull(DDlColumn2,'') as DDlColumn2,isnull(DDlColumn3,'') as DDlColumn3 from 
+--create first temp table with srno column 
+(select 
+row_number() over (order by id) as srNo,DDlColumn1 
+ from DDL1 ) as DDL1
+ --Full join  
+  full join 
+ --create second temp table with srno column  
+  (select 
+row_number() over (order by id) as srNo,DDlColumn2
+ from DDL2 ) as DDL2
+ --join on sr no cloumn match the sr no 1,2,3 and print unmach column also
+    on DDL1.srNo = ddl2.srNo 
+ --Full join  
+full join 
+ --create third temp table with srno column  
+
+  ( select 
+row_number() over (order by id) as srNo,DDlColumn3
+ from DDL3 )as DDL3
+ 
+ on DDL3.srNo=DDL2.srNo 
+ 
+ --output of above query 
+
+DDlColumn1	DDlColumn2	DDlColumn3
+Sam	         RED     	India
+Ram			     Blue		   US
+			       Orange		Chaina
+		      	 White		Uk
+		      	 Greem	
+
