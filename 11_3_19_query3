@@ -1,0 +1,1352 @@
+USE [FAR]
+GO
+/****** Object:  StoredProcedure [dbo].[Proc_AddInventory]    Script Date: 3/11/2019 6:25:23 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+/*-- =============================================
+-- Author:		Swati
+-- Create date: 13 july 2017
+-- Description: Get Inventory 
+ -- [Proc_GetLogin] '199633'
+
+ 
+ DECLARE @GoalSettingReportFilter InventoryDesktopDetailType
+ insert into @GoalSettingReportFilter  (Vertical ,Country ,SupervisorId,RoleBand )
+  VALUES ('Autoclaims','','','A') 
+ exec [Proc_AddUpdateInventory]'','204430','','','1,3,4','','','','194500','','0','','','GoalSettingReport',@GoalSettingReportFilter 
+
+ 
+ DECLARE @obj InventoryDesktopDetailType
+ --,@Messag NVARCHAR(100)
+ insert into @obj  ([DualHostName],[DeskID] ,[IPAddress],[Make],[ModelSize],[Processor],[RAM],[HardDisk],[DomainName],[SharedDedicated],[project],[Location1],[wing],[InstalledOperatingSystem],[PurchasedOS],[MSOffice] ,[OCSClient],[AcrobatReader],[Winzip],[Antivirus],[OtherSoftware],[WarrantyStart],[WarrantyEnd],[AgeSpend],[PhysicalVerification],[StockStatus],[bond],[Hostname],[SerialNumber],[TAGNumber])
+  VALUES  ('DualHostName','DeskID' ,'IPAddress','Make','ModelSize','Processor','RAM','HardDisk','DomainName','SharedDedicated','project','Location1','wing','InstalledOperatingSystem','PurchasedOS','MSOffice' ,'OCSClient','AcrobatReader','Winzip','Antivirus','OtherSoftware','WarrantyStart','WarrantyEnd','AgeSpend','PhysicalVerification','StockStatus','bond','Hostname','SerialNumber','TAG1')
+ exec [Proc_AddInventory] '3530000738','204430','idsf', 'loc',@obj
+ --,@Messag OUTPUT
+ PRINT @Messag
+
+ select * from TD_Inventory
+ select * from TD_InventoryCommonDetail
+ select * from TD_InventoryDesktopDetail
+ select * from TD_InventoryLaptopDetail
+ select * from TD_InventoryNetworkDetail
+ select * from TD_InventoryServerDetail
+ select * from TD_InventoryTelecomDetail
+ -- drop proc [Proc_AddInventory]
+ 
+
+DECLARE @D  InventoryDesktopDetailType,@L InventoryLaptopDetailType, @N InventoryNetworkDetailType, @S InventoryServerDetailType, @T InventoryTelecomDetailType,@I InventoryInfraDetailType 
+
+INSERT INTO @I (PoNumber,PoId,PoDate,GRNNumber,GRNDate,ItemCode,TAGCount,MajorCategory,MinorCategory,MinorSubCategory,Description,ManufacturerName,TaggableTypeID,AssetTypeID,ExpTypeID,Location,SiteName,InventoryAssetType,SerialNumber,TAGNumber,HostName,ProcessName,IPAddress,Make,Model,SharedDedicated,DefineScope,DeviceSupport,StockStatus,SubLocation,SubMinorCategory) 
+VALUES ('3050000174','','2014-08-18T14:53:17','5050000643','2014-09-23T17:55:08','C01920','','COMPUTERS','CPU','','','Dell India Pvt Ltd','1','56','74','WNS India Chennai SEZ Inv Org','Site Name 1','102','Ser1','Tag1','87','Process Name 1','10.11.12.13','77','81','100','Define Scope 1','94','90','Sub Loc 1','1')
+
+EXEC [Proc_AddInventory] '238306',34,'8',@D,@L,@N,@S,@T,@I
+
+
+
+
+-- =============================================*/
+ALTER Proc [dbo].[Proc_AddInventory] --'204430' ,'1,4' 
+@EmplId varchar(50)=null,
+@UserId int=0,
+@RoleID varchar(50)=null,
+@InventoryDesktopDetailType InventoryDesktopDetailTypeNew readonly,
+@InventoryLaptopDetailType InventoryLaptopDetailTypeNew readonly,
+@InventoryNetworkDetailType InventoryNetworkDetailTypeNew readonly,
+@InventoryServerDetailType InventoryServerDetailTypeNew readonly,
+@InventoryTelecomDetailType InventoryTelecomDetailTypeNew readonly,
+----Start - Infra Inventory P2
+@InventoryInfraDetailType InventoryInfraDetailType readonly
+----End - Infra Inventory P2 Changes
+
+--,@Msg NVARCHAR(MAX) OUTPUT
+As
+Begin
+BEGIN TRANSACTION
+ BEGIN TRY
+
+print 'Add inventory'
+
+
+declare  @Msg varchar(200)= ''
+declare @flag bit=0
+declare @AssetBookType nvarchar(100)=''
+
+---START  Add check for Duplicate Tag Number----
+declare @duplicateFlag bit=0
+
+
+if(exists(select 'X' from TD_InventoryCommonDetail invcommon join @InventoryDesktopDetailType invdesk on invcommon.TAGNumber=invdesk.TAGNumber))
+begin
+set @duplicateFlag=1
+end
+
+if(exists(select 'X' from TD_InventoryCommonDetail invcommon join @InventoryLaptopDetailType invlap on invcommon.TAGNumber=invlap.TAGNumber))
+begin
+set @duplicateFlag=1
+end
+
+if(exists(select 'X' from TD_InventoryCommonDetail invcommon join @InventoryNetworkDetailType invntwk on invcommon.TAGNumber=invntwk.TAGNumber))
+begin
+set @duplicateFlag=1
+end
+
+if(exists(select 'X' from TD_InventoryCommonDetail invcommon join @InventoryServerDetailType invser on invcommon.TAGNumber=invser.TAGNumber))
+begin
+set @duplicateFlag=1
+end
+
+if(exists(select 'X' from TD_InventoryCommonDetail invcommon join @InventoryTelecomDetailType invtel on invcommon.TAGNumber=invtel.TAGNumber))
+begin
+set @duplicateFlag=1
+end
+
+if(exists(select 'X' from TD_InventoryCommonDetail invcommon join @InventoryInfraDetailType invinfra on invcommon.TAGNumber=invinfra.TAGNumber))
+begin
+set @duplicateFlag=1
+end
+----END Add Check for Duplicate Tag Number----
+
+
+if(@duplicateFlag=0)
+begin
+
+/****************************START: DESKTOP INSERTION ******************************************************************************************************************************************************/
+--select * from @InventoryDesktopDetailType
+--select * from TD_Inventory 
+
+
+if(exists(select 'X' from @InventoryDesktopDetailType invcommon join [TD_TAG] tag on invcommon.TagNumber =tag.TagNumber where tag.IsTagVoid=1))
+begin
+set @flag=1
+end
+
+if(exists(select 'X' from @InventoryLaptopDetailType invcommon join [TD_TAG] tag on invcommon.TagNumber =tag.TagNumber where tag.IsTagVoid=1))
+begin
+set @flag=1
+end
+
+if(exists(select 'X' from @InventoryNetworkDetailType invcommon join [TD_TAG] tag on invcommon.TagNumber =tag.TagNumber where tag.IsTagVoid=1))
+begin
+set @flag=1
+end
+
+if(exists(select 'X' from @InventoryServerDetailType invcommon join [TD_TAG] tag on invcommon.TagNumber =tag.TagNumber where tag.IsTagVoid=1))
+begin
+set @flag=1
+end
+
+if(exists(select 'X' from @InventoryTelecomDetailType invcommon join [TD_TAG] tag on invcommon.TagNumber =tag.TagNumber where tag.IsTagVoid=1))
+begin
+set @flag=1
+end
+
+
+----Start - Infra Inventory P2
+if(exists(select 'X' from @InventoryInfraDetailType invcommon join [TD_TAG] tag on invcommon.TagNumber =tag.TagNumber where tag.IsTagVoid=1))
+begin
+set @flag=1
+end
+----End - Infra Inventory P2 Changes
+
+
+
+if(@flag =0)
+begin
+
+
+
+
+/****************************START: DESKTOP INSERTION ******************************************************************************************************************************************************/
+
+if(exists(select top 1 1 from  @InventoryDesktopDetailType ))
+	begin
+		
+		print 'Inserting Inventory ... Desktop' 
+
+		declare @desktopCnt int=1,@InventoryIDDesktop bigint=0
+	
+		declare @InventoryDesktopDetail TABLE (
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,	
+	[PoNumber] [nvarchar](100) NULL,
+	[PoId] [nvarchar](250) NULL,
+	[PoDate] [nvarchar](100) NULL,
+	[GRNNumber] [nvarchar](250) NULL,
+	[GRNDate] [nvarchar](100) NULL,
+	[ItemCode] [nvarchar](250) NULL,
+	[TAGCount] [nvarchar](250) NULL,
+	[MajorCategory] [nvarchar](500) NULL,
+	[MinorCategory] [nvarchar](500) NULL,
+	[MinorSubCategory] [nvarchar](500) NULL,
+	[Description] [nvarchar](3000) NULL,
+	[ManufacturerName] [nvarchar](500) NULL,
+	[TaggableTypeID] [nvarchar](100) NULL,
+	[AssetTypeID] [nvarchar](100) NULL,
+	[ExpTypeID] [nvarchar](100) NULL,
+	[DualHostName] [nvarchar](100) NULL,
+	[DeskID] [nvarchar](100) NULL,
+	[IPAddress] [nvarchar](100) NULL,
+	[MakeDesktopID] [nvarchar](100) NULL,
+	[ModelSize] [nvarchar](100) NULL,
+	[Processor] [nvarchar](100) NULL,
+	[RAM] [nvarchar](100) NULL,
+	[HardDisk] [nvarchar](100) NULL,
+	[DomainName] [nvarchar](100) NULL,
+	[SharedDedicated] [nvarchar](100) NULL,
+	[project] [nvarchar](100) NULL,
+	[Location1] [nvarchar](100) NULL,
+	[wing] [nvarchar](100) NULL,
+	[InstalledOperatingSystem] [nvarchar](100) NULL,
+	[PurchasedOS] [nvarchar](100) NULL,
+	[MSOffice] [nvarchar](100) NULL,
+	[OCSClient] [nvarchar](100) NULL,
+	[AcrobatReader] [nvarchar](100) NULL,
+	[Winzip] [nvarchar](100) NULL,
+	[Antivirus] [nvarchar](100) NULL,
+	[OtherSoftware] [nvarchar](100) NULL,
+	[WarrantyStart] [nvarchar](100) NULL,
+	[WarrantyEnd] [nvarchar](100) NULL,
+	[AgeSpend] [nvarchar](100) NULL,
+	[PhysicalVerification] [nvarchar](100) NULL,
+	[StockStatusDesktopID] [nvarchar](100) NULL,
+	[bond] [nvarchar](100) NULL,
+	[Hostname] [nvarchar](100) NULL,
+	[AllocationTypeID] [nvarchar](100) NULL,
+	[SerialNumber] [nvarchar](100) NULL,
+	[TAGNumber] [nvarchar](100) NULL,
+	[Location] [nvarchar](500) NULL,
+	[SubLocation] [nvarchar](1000) NULL,
+	[SubMinorCategory] [nvarchar](100) NULL,
+	[PropertyCode] [nvarchar](10) NULL,
+	[Remark] [nvarchar](max) NULL
+	)
+
+		insert into @InventoryDesktopDetail
+		select 
+		[PoNumber]
+      ,[PoId]
+      ,cast( [PoDate] as datetime) [PoDate] ---
+      ,[GRNNumber]
+      ,cast( [GRNDate] as datetime) [GRNDate] ---
+      ,[ItemCode]
+      ,[TAGCount]
+      ,[MajorCategory]
+      ,[MinorCategory]
+      ,[MinorSubCategory]
+      ,[Description]
+      ,[ManufacturerName]
+      ,cast( [TaggableTypeID] as int) [TaggableTypeID] ---
+      ,cast( [AssetTypeID] as int) [AssetTypeID] ---
+      ,cast( [ExpTypeID] as int) [ExpTypeID] --
+	 -- ,[DualHostName],[DeskID] ,[IPAddress],[MakeDesktopID],[ModelSize],[Processor],[RAM],[HardDisk],[DomainName],[SharedDedicated],[project],[Location1],[wing],[InstalledOperatingSystem],[PurchasedOS],[MSOffice] ,[OCSClient],[AcrobatReader],[Winzip],[Antivirus],[OtherSoftware],[WarrantyStart],[WarrantyEnd],[AgeSpend],[PhysicalVerification],[StockStatusDesktopID],[bond],[Hostname],[SerialNumber],TAGNumber		
+	  ,[DualHostName]
+      ,[DeskID]
+      ,[IPAddress]
+      ,cast( [MakeDesktopID] as int)[MakeDesktopID] --
+      ,[ModelSize]
+      ,[Processor]
+      ,[RAM]
+      ,[HardDisk]
+      ,[DomainName]
+      ,[SharedDedicated]
+      ,[project]
+      ,[Location1]
+      ,[wing]
+     -- ,[AssetId]
+      ,[InstalledOperatingSystem]
+      ,[PurchasedOS]
+      ,[MSOffice]
+      ,[OCSClient]
+      ,[AcrobatReader]
+      ,[Winzip]
+      ,[Antivirus]
+      ,[OtherSoftware]
+      ,[WarrantyStart]
+      ,[WarrantyEnd]
+      ,[AgeSpend]
+      ,[PhysicalVerification]
+      ,cast( [StockStatusDesktopID] as int)[StockStatusDesktopID] --
+      ,[bond]
+      ,[Hostname]
+      ,cast( [AllocationTypeID] as int)[AllocationTypeID]
+      --,cast( [SystemAssetID] as int)[SystemAssetID]
+	  --,SystemAssetID
+      ,[SerialNumber]
+	  ,TAGNumber
+	  ,Location
+	  ,[SubLocation],
+	  [SubMinorCategory],
+	[PropertyCode] ,[Remark] 
+		from @InventoryDesktopDetailType
+		
+		
+		set  @AssetBookType=(select top 1 [BOOK_TYPE_CODE] from [WNS_PO_DETAILS_V] (nolock) where PONumber=(select top 1 [PoNumber] from @InventoryDesktopDetailType ))
+
+		while (@desktopCnt<= (select count(*) from @InventoryDesktopDetail ))
+		begin
+
+		--insert into TD_Inventory(PoNumber,GRNNumber,ItemCode)
+		--select @PONUmber as PONUMBER,  @GRNNUmber	as GRNNUmbe, @ItemCode  as ItemCode
+		insert into TD_Inventory( [PoNumber]
+      ,[PoId]
+      ,[PoDate]
+      ,[GRNNumber]
+      ,[GRNDate]
+      ,[ItemCode]
+      ,[TAGCount]
+      ,[MajorCategory]
+      ,[MinorCategory]
+      ,[MinorSubCategory]
+      ,[Description]
+      ,[ManufacturerName]
+      ,[TaggableTypeID]
+      ,[AssetTypeID]
+      ,[ExpTypeID]
+	  ,[InventoryTypeID],
+	   RecCreatedBy,
+       RecCreatedDate
+	  )
+		select [PoNumber]
+      ,[PoId]
+      ,[PoDate]
+      ,[GRNNumber]
+      ,[GRNDate]
+      ,[ItemCode]
+      ,[TAGCount]
+      ,[MajorCategory]
+      ,[MinorCategory]
+      ,[MinorSubCategory]
+      ,[Description]
+      ,[ManufacturerName]
+      ,[TaggableTypeID]
+      ,[AssetTypeID]
+      ,[ExpTypeID],1,@EmplId ,GETDATE() from @InventoryDesktopDetail where ID=@desktopCnt
+
+		set @InventoryIDDesktop=@@IDENTITY
+
+		insert into TD_InventoryDesktopDetail(InventoryID,[DualHostName]
+      ,[DeskID]
+      ,[IPAddress]
+      ,[MakeDesktopID]
+      ,[ModelSize]
+      ,[Processor]
+      ,[RAM]
+      ,[HardDisk]
+      ,[DomainName]
+      ,[SharedDedicated]
+      ,[project]
+      ,[Location1]
+      ,[wing]
+    --  ,[AssetId]
+      ,[InstalledOperatingSystem]
+      ,[PurchasedOS]
+      ,[MSOffice]
+      ,[OCSClient]
+      ,[AcrobatReader]
+      ,[Winzip]
+      ,[Antivirus]
+      ,[OtherSoftware]
+      ,[WarrantyStart]
+      ,[WarrantyEnd]
+      ,[AgeSpend]
+      ,[PhysicalVerification]
+      ,[StockStatusDesktopID]
+      ,[bond]
+      ,[Hostname]
+      ,[AllocationTypeID]
+      --,[SystemAssetID]
+      ,[SerialNumber],
+	  RecCreatedBy,
+      RecCreatedDate
+	  ,[SubLocation],
+	  [SubMinorCategory]
+	  )
+		select @InventoryIDDesktop,
+		[DualHostName]
+      ,[DeskID]
+      ,[IPAddress]
+      ,[MakeDesktopID]
+      ,[ModelSize]
+      ,[Processor]
+      ,[RAM]
+      ,[HardDisk]
+      ,[DomainName]
+      ,[SharedDedicated]
+      ,[project]
+      ,[Location1]
+      ,[wing]
+      --,[AssetId]
+      ,[InstalledOperatingSystem]
+      ,[PurchasedOS]
+      ,[MSOffice]
+      ,[OCSClient]
+      ,[AcrobatReader]
+      ,[Winzip]
+      ,[Antivirus]
+      ,[OtherSoftware]
+      ,cast ([WarrantyStart] as datetime) [WarrantyStart]
+      ,cast ([WarrantyEnd] as datetime) [WarrantyEnd]
+      ,[AgeSpend]
+      ,[PhysicalVerification]
+      ,[StockStatusDesktopID]
+      ,[bond]
+      ,[Hostname]
+      ,[AllocationTypeID]
+      --,[SystemAssetID]
+      ,[SerialNumber],@EmplId ,GETDATE(),
+	  [SubLocation],
+	  [SubMinorCategory]
+	   from @InventoryDesktopDetail where ID=@desktopCnt
+
+		insert into TD_InventoryCommonDetail([InventoryID] ,	[AssetModule] ,	[TAGNumber],SerialNumber,	[Location],RecCreatedBy,RecCreatedDate,BOOK_TYPE_CODE,Remark ,[PropertyCode])
+		select @InventoryIDDesktop,'59',TAGNumber,SerialNumber,Location,@EmplId ,GETDATE(),@AssetBookType,Remark,case when [PropertyCode]='' then null else [PropertyCode] end  from @InventoryDesktopDetail where ID=@desktopCnt
+
+		set @desktopCnt=@desktopCnt+1
+		end
+
+	end
+
+/****************************END: DESKTOP INSERTION ******************************************************************************************************************************************************/
+
+
+
+/****************************START: LAPTOP INSERTION ******************************************************************************************************************************************************/
+--select * from @InventoryDesktopDetailType
+--select * from TD_Inventory 
+
+if(exists(select top 1 1 from  @InventoryLaptopDetailType ))
+	begin
+		
+		print 'Inserting Inventory ... LAPTOP' 
+
+		declare @LaptopCnt int=1,@InventoryIDLaptop bigint=0
+	
+	
+
+	
+			declare @InventoryLaptopDetail TABLE (
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,	
+	[PoNumber] [nvarchar](100) NULL,
+	[PoId] [nvarchar](250) NULL,
+	[PoDate] [nvarchar](100) NULL,
+	[GRNNumber] [nvarchar](250) NULL,
+	[GRNDate] [nvarchar](100) NULL,
+	[ItemCode] [nvarchar](250) NULL,
+	[TAGCount] [nvarchar](250) NULL,
+	[MajorCategory] [nvarchar](500) NULL,
+	[MinorCategory] [nvarchar](500) NULL,
+	[MinorSubCategory] [nvarchar](500) NULL,
+	[Description] [nvarchar](3000) NULL,
+	[ManufacturerName] [nvarchar](500) NULL,
+	[TaggableTypeID] [nvarchar](100) NULL,
+	[AssetTypeID] [nvarchar](100) NULL,
+	[ExpTypeID] [nvarchar](100) NULL,
+	[EmployeeID] [nvarchar](20) NULL,
+	[EmployeeName] [nvarchar](100) NULL,
+	[Make] [nvarchar](100) NULL,
+	[Model] [nvarchar](100) NULL,
+	[IssueDate] [nvarchar](100) NULL,
+	[ExpectedReturnDate] [nvarchar](100) NULL,
+	[IsReturned] [nvarchar](10) NULL,
+	[RAM] [nvarchar](100) NULL,
+	[WarrantyStart] [nvarchar](100) NULL,
+	[WarrantyEnd] [nvarchar](100) NULL,
+	[Hostname] [nvarchar](100) NULL,
+	[AllocationTypeLaptopID] [nvarchar](100) NULL,
+	[StockStatusLaptopID] [nvarchar](100) NULL,
+	[PropertyCode] [nvarchar](10) NULL,
+	[Remark] [nvarchar](max) NULL,
+	[SerialNumber] [nvarchar](100) NULL,
+	[TAGNumber] [nvarchar](100) NULL,
+	[Location] [nvarchar](500) NULL,
+	[SubLocation] [nvarchar](1000) NULL,
+	[SubMinorCategory] [nvarchar](100) NULL
+	)
+
+	--select * from @InventoryLaptopDetailType
+
+
+		insert into @InventoryLaptopDetail
+		select 
+		[PoNumber]
+      ,[PoId]
+      ,cast( [PoDate] as datetime)[PoDate] --
+      ,[GRNNumber]
+      ,cast( [GRNDate] as datetime)[GRNDate] --
+      ,[ItemCode]
+      ,[TAGCount]
+      ,[MajorCategory]
+      ,[MinorCategory]
+      ,[MinorSubCategory]
+      ,[Description]
+      ,[ManufacturerName]
+      ,cast( [TaggableTypeID] as int) [TaggableTypeID] --
+      ,cast( [AssetTypeID] as int) [AssetTypeID] --
+      ,cast( [ExpTypeID] as int) [ExpTypeID] --
+	 
+	  ,[EmployeeID]
+      ,[EmployeeName]
+	   ,cast( [Make] as int)[Make]
+       ,cast( [Model] as int)[Model]
+      --,[BadgeID]
+      ,case when IssueDate='' then null else cast( [IssueDate] as datetime) end [IssueDate]
+      ,case when ExpectedReturnDate='' then null else cast( [ExpectedReturnDate] as datetime) end [ExpectedReturnDate]
+      ,case when [IsReturned]='true' then 1 else 0 end as [IsReturned]
+      ,[RAM] 
+	  ,case when WarrantyStart='' then null else cast( [WarrantyStart] as datetime) end [WarrantyStart]
+      ,case when WarrantyEnd='' then null else cast( [WarrantyEnd] as datetime) end [WarrantyEnd]
+	  ,[HostName] 
+	  	,cast( [AllocationTypeLaptopID] as int)[AllocationTypeLaptopID]
+	  ,cast( [StockStatusLaptopID] as int)[StockStatusLaptopID]
+	  ,[PropertyCode]
+	 ,[Remark]
+      ,[SerialNumber]
+	  ,TAGNumber
+	  ,Location
+	  ,[SubLocation],
+	  [SubMinorCategory] 
+		from @InventoryLaptopDetailType
+		set  @AssetBookType=(select top 1 [BOOK_TYPE_CODE] from [WNS_PO_DETAILS_V] (nolock) where PONumber=(select top 1 [PoNumber] from @InventoryLaptopDetailType ))
+		while (@laptopCnt<= (select count(*) from @InventoryLaptopDetail ))
+		begin
+
+		insert into TD_Inventory( [PoNumber]
+      ,[PoId]
+      ,[PoDate]
+      ,[GRNNumber]
+      ,[GRNDate]
+      ,[ItemCode]
+      ,[TAGCount]
+      ,[MajorCategory]
+      ,[MinorCategory]
+      ,[MinorSubCategory]
+      ,[Description]
+      ,[ManufacturerName]
+      ,[TaggableTypeID]
+      ,[AssetTypeID]
+      ,[ExpTypeID],[InventoryTypeID],RecCreatedBy,
+       RecCreatedDate)
+		select [PoNumber]
+      ,[PoId]
+      ,[PoDate]
+      ,[GRNNumber]
+      ,[GRNDate]
+      ,[ItemCode]
+      ,[TAGCount]
+      ,[MajorCategory]
+      ,[MinorCategory]
+      ,[MinorSubCategory]
+      ,[Description]
+      ,[ManufacturerName]
+      ,[TaggableTypeID]
+      ,[AssetTypeID]
+      ,[ExpTypeID],2 ,@EmplId ,GETDATE() from @InventoryLaptopDetail where ID=@laptopCnt
+
+		set @InventoryIDLaptop=@@IDENTITY
+
+		insert into TD_InventoryLaptopDetail(InventoryID,[EmployeeID]
+      ,[EmployeeName]
+      ,[Model]
+      --,[BadgeID]
+      ,[IssueDate]
+      ,[ExpectedReturnDate]
+      ,[IsReturned]
+      ,[Make]      
+      ,[SerialNumber],RecCreatedBy,RecCreatedDate,
+	  [SubLocation],
+	  [SubMinorCategory]
+	   ,[RAM] 
+	  , [WarrantyStart]
+      ,[WarrantyEnd]
+	  ,[HostName] 
+		,[AllocationTypeLaptopID]
+		,[StockStatusLaptopID] )
+		select @InventoryIDLaptop,
+		[EmployeeID]
+      ,[EmployeeName]
+      ,[Model]
+      --,[BadgeID]
+      ,[IssueDate]
+      ,[ExpectedReturnDate]
+      ,[IsReturned]
+      ,[Make]      
+      ,[SerialNumber],@EmplId ,GETDATE()
+	  ,[SubLocation],
+	  [SubMinorCategory] 
+	  ,[RAM] 
+	  , cast ([WarrantyStart] as datetime) [WarrantyStart]
+      ,cast ([WarrantyEnd] as datetime) [WarrantyEnd]
+	  ,[HostName] 
+		,[AllocationTypeLaptopID]
+		,[StockStatusLaptopID]
+	   from @InventoryLaptopDetail where ID=@laptopCnt
+
+		insert into TD_InventoryCommonDetail([InventoryID] ,	[AssetModule] ,	[TAGNumber],SerialNumber,	[Location],RecCreatedBy,RecCreatedDate, BOOK_TYPE_CODE,Remark,PropertyCode)
+		select @InventoryIDLaptop,'59',TAGNumber,SerialNumber,Location,@EmplId ,GETDATE() ,@AssetBookType,Remark,case when [PropertyCode]='' then null else [PropertyCode] end from @InventoryLaptopDetail where ID=@laptopCnt
+
+		set @laptopCnt=@laptopCnt+1
+		end
+
+	end
+
+/****************************END: LAPTOP INSERTION ******************************************************************************************************************************************************/
+
+
+
+
+
+
+/****************************START: Network INSERTION ******************************************************************************************************************************************************/
+--select * from @InventoryDesktopDetailType
+--select * from TD_Inventory 
+
+if(exists(select top 1 1 from  @InventoryNetworkDetailType ))
+	begin
+		
+		print 'Inserting Inventory ... Network' 
+
+		declare @NwCnt int=1,@InventoryIDNw bigint=0
+	
+		declare @InventoryNetworkDetail TABLE (
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,	
+	[PoNumber] [nvarchar](100) NULL,
+	[PoId] [nvarchar](250) NULL,
+	[PoDate] [nvarchar](100) NULL,
+	[GRNNumber] [nvarchar](250) NULL,
+	[GRNDate] [nvarchar](100) NULL,
+	[ItemCode] [nvarchar](250) NULL,
+	[TAGCount] [nvarchar](250) NULL,
+	[MajorCategory] [nvarchar](500) NULL,
+	[MinorCategory] [nvarchar](500) NULL,
+	[MinorSubCategory] [nvarchar](500) NULL,
+	[Description] [nvarchar](3000) NULL,
+	[ManufacturerName] [nvarchar](500) NULL,
+	[TaggableTypeID] [nvarchar](100) NULL,
+	[AssetTypeID] [nvarchar](100) NULL,
+	[ExpTypeID] [nvarchar](100) NULL,
+	[MakeNetworkID] [nvarchar](100) NULL,
+	[Model] [nvarchar](500) NULL,
+	[StockStatusNetworkID] [nvarchar](500) NULL,
+	[DeviceLife] [nvarchar](500) NULL,
+	[DefineScope] [nvarchar](500) NULL,
+	[EndoflifeofdeviceID] [nvarchar](100) NULL,
+	[DeviceSupportID] [nvarchar](100) NULL,
+	[ModelSize] [nvarchar](500) NULL,
+	[Processname] [nvarchar](500) NULL,
+	[SharedDedicatedID] [nvarchar](100) NULL,
+	[IPAddress] [nvarchar](100) NULL,
+	[SiteName] [nvarchar](100) NULL,
+	[SerialNumber] [nvarchar](100) NULL,
+	[TAGNumber] [nvarchar](100) NULL,
+	[Location] [nvarchar](500) NULL,
+	[SubLocation] [nvarchar](1000) NULL,
+	[SubMinorCategory] [nvarchar](100) NULL,
+	[PropertyCode] [nvarchar](10) NULL,
+	[Remark] [nvarchar](max) NULL
+	)
+
+		insert into @InventoryNetworkDetail
+		
+		select 
+		[PoNumber]
+      ,[PoId]
+      ,cast( [PoDate] as datetime) [PoDate] --
+      ,[GRNNumber]
+      ,cast( [GRNDate] as datetime) [GRNDate] --
+      ,[ItemCode]
+      ,[TAGCount]
+      ,[MajorCategory]
+      ,[MinorCategory]
+      ,[MinorSubCategory]
+      ,[Description]
+      ,[ManufacturerName]
+      ,cast( [TaggableTypeID] as int) [TaggableTypeID] --
+      ,cast( [AssetTypeID] as int) [AssetTypeID] --
+      ,cast( [ExpTypeID] as int) [ExpTypeID] --
+	 
+	  ,cast( [MakeNetworkID] as int) [MakeNetworkID] --
+      ,[Model]
+      ,cast( [StockStatusNetworkID] as int)[StockStatusNetworkID] --
+      ,[DeviceLife]
+      ,[DefineScope]
+      ,cast([EndoflifeofdeviceID] as int) [EndoflifeofdeviceID] --
+      ,cast([DeviceSupportID] as int) [DeviceSupportID] --
+      ,[ModelSize]
+      ,[Processname]
+      ,cast([SharedDedicatedID] as int) [SharedDedicatedID]--
+      --,cast([SystemAssetID] as int)[SystemAssetID]--
+      ,[IPAddress]
+      ,[SiteName] 
+	  ,[SerialNumber]     
+      --,cast([AssetTypeNetworkID] as int)[AssetTypeNetworkID]--
+	  ,TAGNumber
+	  ,Location
+	  ,[SubLocation],
+	  [SubMinorCategory],
+	[PropertyCode] ,[Remark] 
+		from @InventoryNetworkDetailType
+		
+		print '1'
+		set  @AssetBookType=(select top 1 [BOOK_TYPE_CODE] from [WNS_PO_DETAILS_V] (nolock) where PONumber=(select top 1 [PoNumber] from @InventoryNetworkDetailType ))
+		while (@NwCnt<= (select count(*) from @InventoryNetworkDetail ))
+		begin
+
+		insert into TD_Inventory( [PoNumber]
+      ,[PoId]
+      ,[PoDate]
+      ,[GRNNumber]
+      ,[GRNDate]
+      ,[ItemCode]
+      ,[TAGCount]
+      ,[MajorCategory]
+      ,[MinorCategory]
+      ,[MinorSubCategory]
+      ,[Description]
+      ,[ManufacturerName]
+      ,[TaggableTypeID]
+      ,[AssetTypeID]
+      ,[ExpTypeID],[InventoryTypeID],RecCreatedBy,RecCreatedDate)
+		select [PoNumber]
+      ,[PoId]
+      ,[PoDate]
+      ,[GRNNumber]
+      ,[GRNDate]
+      ,[ItemCode]
+      ,[TAGCount]
+      ,[MajorCategory]
+      ,[MinorCategory]
+      ,[MinorSubCategory]
+      ,[Description]
+      ,[ManufacturerName]
+      ,[TaggableTypeID]
+      ,[AssetTypeID]
+      ,[ExpTypeID],5,@EmplId ,GETDATE() from @InventoryNetworkDetail where ID=@NwCnt
+
+		set @InventoryIDNw=@@IDENTITY
+
+		print '2'
+		insert into TD_InventoryNetworkDetail(InventoryID,[MakeNetworkID]
+      ,[Model]
+      ,[StockStatusNetworkID]
+      ,[DeviceLife]
+      ,[DefineScope]
+      ,[EndoflifeofdeviceID]
+      ,[DeviceSupportID]
+      ,[ModelSize]
+      ,[Processname]
+      ,[SharedDedicatedID]
+      --,[SystemAssetID]
+      ,[IPAddress]
+      ,[SiteName]  
+	  ,[SerialNumber]    
+      --,[AssetTypeNetworkID]
+	  ,RecCreatedBy,
+	   RecCreatedDate
+	  ,[SubLocation],
+	  [SubMinorCategory] 
+	   )
+		select @InventoryIDNw,
+		[MakeNetworkID]
+      ,[Model]
+      ,[StockStatusNetworkID]
+      ,[DeviceLife]
+      ,[DefineScope]
+      ,[EndoflifeofdeviceID]
+      ,[DeviceSupportID]
+      ,[ModelSize]
+      ,[Processname]
+      ,[SharedDedicatedID]
+      --,[SystemAssetID]
+      ,[IPAddress]
+      ,[SiteName]
+	  ,[SerialNumber]      
+      --,[AssetTypeNetworkID]
+	  ,@EmplId ,GETDATE()
+	  ,[SubLocation],
+	  [SubMinorCategory]
+	   from @InventoryNetworkDetail where ID=@NwCnt
+
+	  print '3'
+
+		insert into TD_InventoryCommonDetail([InventoryID] ,	[AssetModule] ,	[TAGNumber],SerialNumber,	[Location],RecCreatedBy,RecCreatedDate,BOOK_TYPE_CODE,Remark,[PropertyCode] )
+		select @InventoryIDNw,'59',TAGNumber,SerialNumber,Location,@EmplId ,GETDATE() ,@AssetBookType,Remark ,case when [PropertyCode]='' then null else [PropertyCode] end  from @InventoryNetworkDetail where ID=@NwCnt
+
+		set @NwCnt=@NwCnt+1
+		end
+
+	end
+
+/****************************END: Network INSERTION ******************************************************************************************************************************************************/
+
+
+
+
+
+/****************************START: SERVER INSERTION ******************************************************************************************************************************************************/
+--select * from @InventoryDesktopDetailType
+--select * from TD_Inventory 
+
+if(exists(select top 1 1 from  @InventoryServerDetailType ))
+	begin
+		
+		print 'Inserting Inventory ... Server' 
+
+		declare @ServerCnt int=1,@InventoryIDServer bigint=0
+	
+		declare @InventoryServerDetail TABLE (
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,	
+
+	[PoNumber] [nvarchar](100) NULL,
+	[PoId] [nvarchar](250) NULL,
+	[PoDate] [datetime] NULL,
+	[GRNNumber] [nvarchar](250) NULL,
+	[GRNDate] [datetime] NULL,
+	[ItemCode] [nvarchar](250) NULL,
+	[TAGCount] [nvarchar](250) NULL,
+	[MajorCategory] [nvarchar](500) NULL,
+	[MinorCategory] [nvarchar](500) NULL,
+	[MinorSubCategory] [nvarchar](500) NULL,
+	[Description] [nvarchar](3000) NULL,
+	[ManufacturerName] [nvarchar](500) NULL,
+	[TaggableTypeID] [int] NULL,
+	[AssetTypeID] [int] NULL,
+	[ExpTypeID] [int] NULL,
+
+	[ServerName] [nvarchar](100) NULL,
+	[ServerUsage] [nvarchar](100) NULL,
+	[ServerDomain] [nvarchar](100) NULL,
+	[ServerRole] [nvarchar](100) NULL,
+	--[AcquistionDate] [datetime] NULL,
+	--[Asset] [nvarchar](100) NULL,
+	--[AssetNo] [nvarchar](100) NULL,
+	[Environment] [nvarchar](100) NULL,
+	[ServerStatusID] [int] NULL,
+	[Product] [nvarchar](100) NULL,
+	[Type] [nvarchar](100) NULL,
+	[TypeNo] [nvarchar](100) NULL,
+	[OSType] [nvarchar](100) NULL,
+	[OS] [nvarchar](100) NULL,
+	[NoOfProcessor] [nvarchar](100) NULL,	
+		
+	[SerialNumber] [nvarchar](100) NULL,
+	TAGNumber  [nvarchar](100) NULL
+	,Location [nvarchar](500) NULL 
+	,[SubLocation] [nvarchar](1000)  NULL,
+	[SubMinorCategory] [nvarchar](100) NULL,
+	[PropertyCode] [nvarchar](10) NULL,
+	--[DateOfAcquisition][nvarchar](100) NULL,
+	[Remark] [nvarchar](max) NULL,
+	[Asset] [nvarchar](100) NULL,
+	[AssetNo] [nvarchar](100) NULL
+	)
+
+		insert into @InventoryServerDetail
+		select 
+		[PoNumber]
+      ,[PoId]
+      ,cast([PoDate] as datetime) [PoDate]
+      ,[GRNNumber]
+      ,cast([GRNDate] as datetime) [GRNDate]
+      ,[ItemCode]
+      ,[TAGCount]
+      ,[MajorCategory]
+      ,[MinorCategory]
+      ,[MinorSubCategory]
+      ,[Description]
+      ,[ManufacturerName]
+      ,cast([TaggableTypeID] as int)  [TaggableTypeID]
+      ,cast([AssetTypeID] as int) [AssetTypeID]
+      ,cast([ExpTypeID] as int) [ExpTypeID]
+	 
+	   ,[ServerName]
+      ,[ServerUsage]
+      ,[ServerDomain]
+      ,[ServerRole]
+      --,case when [DateOfAcquisition] ='' then null else cast([DateOfAcquisition] as datetime) end 
+      --,[Asset]
+      --,[AssetNo]
+      ,[Environment]
+      ,cast([ServerStatusID] as int) [ServerStatusID]
+      ,[Product]
+      ,[Type]
+      ,[TypeNo]
+      ,[OSType]
+      ,[OS]
+      ,[NoOfProcessor]
+	        
+      ,[SerialNumber]
+	  ,TAGNumber
+	  ,Location
+	  ,[SubLocation],
+	  [SubMinorCategory],
+	[PropertyCode] ,[Remark]  ,[Asset]
+      ,[AssetNo] 
+		from @InventoryServerDetailType
+		
+		set  @AssetBookType=(select top 1 [BOOK_TYPE_CODE] from [WNS_PO_DETAILS_V] (nolock) where PONumber=(select top 1 [PoNumber] from @InventoryServerDetailType ))
+
+		while (@ServerCnt<= (select count(*) from @InventoryServerDetail ))
+		begin
+
+		insert into TD_Inventory( [PoNumber]
+      ,[PoId]
+      ,[PoDate]
+      ,[GRNNumber]
+      ,[GRNDate]
+      ,[ItemCode]
+      ,[TAGCount]
+      ,[MajorCategory]
+      ,[MinorCategory]
+      ,[MinorSubCategory]
+      ,[Description]
+      ,[ManufacturerName]
+      ,[TaggableTypeID]
+      ,[AssetTypeID]
+      ,[ExpTypeID],[InventoryTypeID],RecCreatedBy,RecCreatedDate)
+		select [PoNumber]
+      ,[PoId]
+      ,[PoDate]
+      ,[GRNNumber]
+      ,[GRNDate]
+      ,[ItemCode]
+      ,[TAGCount]
+      ,[MajorCategory]
+      ,[MinorCategory]
+      ,[MinorSubCategory]
+      ,[Description]
+      ,[ManufacturerName]
+      ,[TaggableTypeID]
+      ,[AssetTypeID]
+      ,[ExpTypeID],4,@EmplId ,GETDATE() from @InventoryServerDetail where ID=@ServerCnt
+
+		set @InventoryIDServer=@@IDENTITY
+
+		insert into TD_InventoryServerDetail(InventoryID,[ServerName]
+      ,[ServerUsage]
+      ,[ServerDomain]
+      ,[ServerRole]
+      ,[Asset]
+      ,[AssetNo]
+      ,[Environment]
+      ,[ServerStatusID]
+      ,[Product]
+      ,[Type]
+      ,[TypeNo]
+      ,[OSType]
+      ,[OS]
+      ,[NoOfProcessor]
+	  ,[SerialNumber],RecCreatedBy,RecCreatedDate
+	  ,[SubLocation],
+	  [SubMinorCategory]
+	  )
+		select @InventoryIDServer,
+		[ServerName]
+      ,[ServerUsage]
+      ,[ServerDomain]
+      ,[ServerRole]
+      --,[DateOfAcquisition] as 'AcquistionDate'
+      ,[Asset]
+      ,[AssetNo]
+      ,[Environment]
+      ,[ServerStatusID]
+      ,[Product]
+      ,[Type]
+      ,[TypeNo]
+      ,[OSType]
+      ,[OS]
+      ,[NoOfProcessor]
+	  ,[SerialNumber],@EmplId ,GETDATE() 
+	  ,[SubLocation],
+	  [SubMinorCategory]
+	  from @InventoryServerDetail where ID=@ServerCnt
+
+		insert into TD_InventoryCommonDetail([InventoryID] ,	[AssetModule] ,	[TAGNumber],	SerialNumber,[Location] ,RecCreatedBy,RecCreatedDate,BOOK_TYPE_CODE,Remark,[PropertyCode])
+		select @InventoryIDServer,'59',TAGNumber,SerialNumber,Location,@EmplId ,GETDATE(),@AssetBookType,Remark ,case when [PropertyCode]='' then null else [PropertyCode] end from @InventoryServerDetail where ID=@ServerCnt
+
+		set @ServerCnt=@ServerCnt+1
+		end
+
+	end
+
+/****************************END: server INSERTION ******************************************************************************************************************************************************/
+
+
+
+
+/****************************START: Telecom INSERTION ******************************************************************************************************************************************************/
+--select * from @InventoryDesktopDetailType
+--select * from TD_Inventory 
+
+if(exists(select top 1 1 from  @InventoryTelecomDetailType ))
+	begin
+		
+		print 'Inserting Inventory ... Telecom' 
+
+		declare @TelCnt int=1,@InventoryIDTel bigint=0
+	
+		declare @InventoryTelecomDetail TABLE (
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,	
+
+	[PoNumber] [nvarchar](100) NULL,
+	[PoId] [nvarchar](250) NULL,
+	[PoDate] [nvarchar](100) NULL,
+	[GRNNumber] [nvarchar](250) NULL,
+	[GRNDate] [nvarchar](100) NULL,
+	[ItemCode] [nvarchar](250) NULL,
+	[TAGCount] [nvarchar](250) NULL,
+	[MajorCategory] [nvarchar](500) NULL,
+	[MinorCategory] [nvarchar](500) NULL,
+	[MinorSubCategory] [nvarchar](500) NULL,
+	[Description] [nvarchar](3000) NULL,
+	[ManufacturerName] [nvarchar](500) NULL,
+	[TaggableTypeID] [nvarchar](100) NULL,
+	[AssetTypeID] [nvarchar](100) NULL,
+	[ExpTypeID] [nvarchar](100) NULL,
+	[HostName] [nvarchar](100) NULL,
+	[DeskID] [nvarchar](max) NULL,
+	[MakeTelecomID] [nvarchar](100) NULL,
+	[ModelTelecom] [nvarchar](100) NULL,
+	[DeviceLifeTelecomID] [nvarchar](100) NULL,
+	[StockStatusTelecomID] [nvarchar](100) NULL,
+	[SerialNumber] [nvarchar](100) NULL,
+	[TAGNumber] [nvarchar](100) NULL,
+	[Location] [nvarchar](500) NULL,
+	[SubLocation] [nvarchar](1000) NULL,
+	[SubMinorCategory] [nvarchar](100) NULL,
+	[PropertyCode] [nvarchar](10) NULL,
+	[Remark] [nvarchar](max) NULL
+	)
+
+		insert into @InventoryTelecomDetail
+		select 
+		[PoNumber]
+      ,[PoId]
+      ,cast([PoDate] as datetime) as [PoDate]
+      ,[GRNNumber]
+      ,cast([GRNDate] as datetime) [GRNDate]
+      ,[ItemCode]
+      ,[TAGCount]
+      ,[MajorCategory]
+      ,[MinorCategory]
+      ,[MinorSubCategory]
+      ,[Description]
+      ,[ManufacturerName]
+      ,cast([TaggableTypeID] as int)[TaggableTypeID]
+      ,cast([AssetTypeID] as int)[AssetTypeID]
+      ,cast([ExpTypeID] as int)[ExpTypeID]
+	  ,[HostName]
+	  ,[DeskID]
+      ,cast([MakeTelecomID] as int) [MakeTelecomID]
+      ,cast([ModelTelecom] as int)  [ModelTelecom]
+      ,cast([DeviceLifeTelecomID] as int) [DeviceLifeTelecomID]
+      ,cast([StockStatusTelecomID]as int) [StockStatusTelecomID]
+      --,cast([AssetTypeTelecomID]as int) [AssetTypeTelecomID]
+	        
+      ,[SerialNumber]
+	  ,TAGNumber
+	  ,Location
+	  ,[SubLocation],
+	  [SubMinorCategory],
+	[PropertyCode] ,[Remark] 
+		from @InventoryTelecomDetailType
+		set  @AssetBookType=(select top 1 [BOOK_TYPE_CODE] from [WNS_PO_DETAILS_V] (nolock) where PONumber=(select top 1 [PoNumber] from @InventoryTelecomDetailType ))
+		while (@TelCnt<= (select count(*) from @InventoryTelecomDetail ))
+		begin
+
+		insert into TD_Inventory( [PoNumber]
+      ,[PoId]
+      ,[PoDate]
+      ,[GRNNumber]
+      ,[GRNDate]
+      ,[ItemCode]
+      ,[TAGCount]
+      ,[MajorCategory]
+      ,[MinorCategory]
+      ,[MinorSubCategory]
+      ,[Description]
+      ,[ManufacturerName]
+      ,[TaggableTypeID]
+      , [AssetTypeID]
+      ,[ExpTypeID]
+	  ,[InventoryTypeID]
+	  ,RecCreatedBy
+	  ,RecCreatedDate)
+		select [PoNumber]
+      ,[PoId]
+      ,[PoDate]
+      ,[GRNNumber]
+      ,[GRNDate]
+      ,[ItemCode]
+      ,[TAGCount]
+      ,[MajorCategory]
+      ,[MinorCategory]
+      ,[MinorSubCategory]
+      ,[Description]
+      ,[ManufacturerName]
+      ,[TaggableTypeID]
+      ,[AssetTypeID]
+      ,[ExpTypeID],3,@EmplId ,GETDATE() from @InventoryTelecomDetail where ID=@TelCnt
+
+		set @InventoryIDTel=@@IDENTITY
+
+		insert into TD_InventoryTelecomDetail(InventoryID,[HostName],[DeskID]
+      ,[MakeTelecomID]
+      ,[ModelTelecom]
+      ,[DeviceLifeTelecomID]
+      ,[StockStatusTelecomID]
+      --,[AssetTypeTelecomID]
+	  ,[SerialNumber],RecCreatedBy,RecCreatedDate,[SubLocation],
+	  [SubMinorCategory])
+		select @InventoryIDTel,
+		[HostName],[DeskID]
+      ,[MakeTelecomID]
+      ,[ModelTelecom]
+      ,[DeviceLifeTelecomID]
+      ,[StockStatusTelecomID]
+      --,[AssetTypeTelecomID]
+	  ,[SerialNumber],@EmplId ,GETDATE()
+	  ,[SubLocation],
+	  [SubMinorCategory] 
+	   from @InventoryTelecomDetail where ID=@TelCnt
+
+		insert into TD_InventoryCommonDetail([InventoryID] ,	[AssetModule] ,	[TAGNumber],SerialNumber,	[Location],RecCreatedBy,RecCreatedDate ,BOOK_TYPE_CODE,Remark,[PropertyCode])
+		select @InventoryIDTel,'59',TAGNumber,SerialNumber,Location,@EmplId ,GETDATE() ,@AssetBookType,Remark ,case when [PropertyCode]='' then null else [PropertyCode] end from @InventoryTelecomDetail where ID=@TelCnt
+
+		set @TelCnt=@TelCnt+1
+		end
+
+	end
+
+/****************************END: Telecom INSERTION ******************************************************************************************************************************************************/
+
+
+
+/**********************************Start - Infra Inventory P2 Changes --Infra INSERTION ********************************************************************************************************************/
+
+if(exists(select top 1 1 from  @InventoryInfraDetailType ))
+	begin
+		
+		print 'Inserting Inventory ... Infra' 
+
+		declare @InfraCnt int=1,@InventoryIDInfra bigint=0
+	
+	declare @InventoryInfraDetail TABLE (
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,	
+	[PoNumber] [nvarchar](100) NULL,
+	[PoId] [nvarchar](250) NULL,
+	[PoDate] [datetime] NULL,
+	[GRNNumber] [nvarchar](250) NULL,
+	[GRNDate] [datetime] NULL,
+	[ItemCode] [nvarchar](250) NULL,
+	[TAGCount] [nvarchar](250) NULL,
+	[MajorCategory] [nvarchar](500) NULL,
+	[MinorCategory] [nvarchar](500) NULL,
+	[MinorSubCategory] [nvarchar](500) NULL,
+	[Description] [nvarchar](3000) NULL,
+	[ManufacturerName] [nvarchar](500) NULL,
+	[TaggableTypeID] [int] NULL,
+	[AssetTypeID] [int] NULL,
+	[ExpTypeID] [int] NULL,
+
+	[SiteName] [nvarchar](100) NULL,
+	[InventoryAssetType] [nvarchar](100) NULL,
+	[HostName] [nvarchar](100) NULL,
+	[ProcessName] [nvarchar](100) NULL,
+	[IPAddress] [nvarchar](100) NULL,
+	[Make] [nvarchar](100) NULL,
+	[Model] [nvarchar](100) NULL,
+	[SharedDedicated] [nvarchar](100) NULL,
+	[DefineScope] [nvarchar](100) NULL,
+	[DeviceSupport] [nvarchar](100) NULL,
+	[StockStatus] [nvarchar](100) NULL,
+	[SerialNumber] [nvarchar](100) NULL,
+	[TAGNumber] [nvarchar](100) NULL,
+	[Location] [nvarchar](500) NULL,
+	[SubLocation] [nvarchar](1000) NULL,
+	[SubMinorCategory] [nvarchar](100) NULL,
+	[PropertyCode] [nvarchar](10) NULL,
+	--[DateOfAcquisition][nvarchar](100) NULL,
+	[Remark] [nvarchar](max) NULL
+	)
+
+
+
+	print 'step 1'
+		insert into @InventoryInfraDetail 
+		
+		--(PoNumber,PoId,PoDate,GRNNumber,GRNDate,ItemCode,TAGCount,MajorCategory,MinorCategory,MinorSubCategory,Description,ManufacturerName,
+		--TaggableTypeID,AssetTypeID,ExpTypeID,Location,SiteName,InventoryAssetType,SerialNumber,	TAGNumber,HostName,ProcessName,IPAddress,Make,Model,SharedDedicated,DefineScope,DeviceSupport,StockStatus,SubLocation,SubMinorCategory)
+		(PoNumber,PoId,PoDate,GRNNumber,GRNDate,ItemCode,TAGCount,MajorCategory,MinorCategory,MinorSubCategory,Description,ManufacturerName,TaggableTypeID,AssetTypeID,ExpTypeID,
+		SiteName,InventoryAssetType,HostName,ProcessName,IPAddress,Make,Model,SharedDedicated,DefineScope,DeviceSupport,StockStatus,SerialNumber,TAGNumber,Location,SubLocation,SubMinorCategory,
+	[PropertyCode] ,[Remark] ) 
+
+		select 
+		[PoNumber]
+      ,[PoId]
+      ,cast([PoDate] as datetime) [PoDate]
+      ,[GRNNumber]
+      ,cast([GRNDate] as datetime) [GRNDate]
+      ,[ItemCode]
+      ,[TAGCount]
+      ,[MajorCategory]
+      ,[MinorCategory]
+      ,[MinorSubCategory]
+      ,[Description]
+      ,[ManufacturerName]
+      ,cast([TaggableTypeID] as int)  [TaggableTypeID]
+      ,cast([AssetTypeID] as int) [AssetTypeID]
+      ,cast([ExpTypeID] as int) [ExpTypeID]
+	  ,[SiteName]
+      ,cast([InventoryAssetType] as int) [InventoryAssetType]
+      ,cast([HostName] as int) [HostName]
+      ,[ProcessName]
+      ,[IPAddress]
+      ,cast([Make] as int) [Make]
+      ,cast([Model] as int) [Model]
+      ,cast([SharedDedicated] as int) [SharedDedicated]
+	  ,[DefineScope]
+      ,cast([DeviceSupport] as int) [DeviceSupport]
+      ,cast([StockStatus] as int) [StockStatus]
+	  ,[SerialNumber]
+	  ,[TAGNumber]
+	  ,[Location]
+	  ,[SubLocation],
+	   [SubMinorCategory],
+	[PropertyCode] ,[Remark] 
+	  from @InventoryInfraDetailType
+		set  @AssetBookType=(select top 1 [BOOK_TYPE_CODE] from [WNS_PO_DETAILS_V] (nolock) where PONumber=(select top 1 [PoNumber] from @InventoryInfraDetail ))
+		while (@InfraCnt<= (select count(*) from @InventoryInfraDetail ))
+		begin
+
+		insert into TD_Inventory( [PoNumber]
+      ,[PoId]
+      ,[PoDate]
+      ,[GRNNumber]
+      ,[GRNDate]
+      ,[ItemCode]
+      ,[TAGCount]
+      ,[MajorCategory]
+      ,[MinorCategory]
+      ,[MinorSubCategory]
+      ,[Description]
+      ,[ManufacturerName]
+      ,[TaggableTypeID]
+      ,[AssetTypeID]
+      ,[ExpTypeID],[InventoryTypeID],RecCreatedBy,RecCreatedDate)
+		select [PoNumber]
+      ,[PoId]
+      ,[PoDate]
+      ,[GRNNumber]
+      ,[GRNDate]
+      ,[ItemCode]
+      ,[TAGCount]
+      ,[MajorCategory]
+      ,[MinorCategory]
+      ,[MinorSubCategory]
+      ,[Description]
+      ,[ManufacturerName]
+      ,[TaggableTypeID]
+      ,[AssetTypeID]
+      ,[ExpTypeID],6,@EmplId ,GETDATE() from @InventoryInfraDetail where ID=@InfraCnt
+
+		set @InventoryIDInfra=@@IDENTITY
+
+		insert into TD_InventoryInfraDetail(
+	   [InventoryID]
+	  ,[SiteName]
+      ,[InventoryAssetType]
+      ,[HostName]
+      ,[ProcessName]
+      ,[IPAddress]
+      ,[Make]
+      ,[Model]
+      ,[SharedDedicated]
+      ,[DefineScope]
+      ,[DeviceSupport]
+      ,[StockStatus]
+	  ,[SerialNumber]
+	  ,[SubLocation]
+	  ,[SubMinorCategory]
+	  ,[RecCreatedBy]
+	  ,[RecCreatedDate]
+	  )
+		select @InventoryIDInfra,
+	   [SiteName]
+      ,[InventoryAssetType]
+      ,[HostName]
+      ,[ProcessName]
+      ,[IPAddress]
+      ,[Make]
+      ,[Model]
+      ,[SharedDedicated]
+      ,[DefineScope]
+      ,[DeviceSupport]
+      ,[StockStatus]
+	  ,[SerialNumber]
+	  ,[SubLocation]
+	  ,[SubMinorCategory]
+	  ,@EmplId 
+	  ,GETDATE() 
+	  
+	  from @InventoryInfraDetail where ID=@InfraCnt
+
+		insert into TD_InventoryCommonDetail([InventoryID] ,	[AssetModule] ,	[TAGNumber],	SerialNumber,[Location] ,RecCreatedBy,RecCreatedDate,BOOK_TYPE_CODE,Remark,[PropertyCode])
+		select @InventoryIDInfra,'59',TAGNumber,SerialNumber,Location,@EmplId ,GETDATE() ,@AssetBookType,Remark ,case when [PropertyCode]='' then null else [PropertyCode] end from @InventoryInfraDetail where ID=@InfraCnt
+
+		set @InfraCnt=@InfraCnt+1
+		end
+
+	end
+
+/**********************************End - Infra Inventory P2 Changes  -- Infra INSERTION ********************************************************************************************************************/
+
+set @Msg='Data Save Successfully.'
+end
+
+else
+begin
+set @Msg='Please check data TAG is void or invalida data entry.'
+
+end
+---START  Add check for Duplicate Tag Number----
+end
+else
+begin
+  set @Msg='Tag Number already exist.'
+end
+---START  Add check for Duplicate Tag Number----
+
+SELECT @Msg 
+
+END TRY
+
+BEGIN CATCH
+    SELECT 
+        ERROR_NUMBER() AS ErrorNumber
+        ,ERROR_SEVERITY() AS ErrorSeverity
+        ,ERROR_STATE() AS ErrorState
+        ,ERROR_PROCEDURE() AS ErrorProcedure
+        ,ERROR_LINE() AS ErrorLine
+        ,ERROR_MESSAGE() AS ErrorMessage;
+
+    IF @@TRANCOUNT > 0
+        ROLLBACK TRANSACTION;
+END CATCH
+
+IF @@TRANCOUNT > 0
+    COMMIT TRANSACTION
+
+End
+
+
+
+
+
+
+
+
