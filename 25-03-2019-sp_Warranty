@@ -1,0 +1,9 @@
+Alter Procedure UpdateWarrantyDetail
+As 
+Begin
+
+update [dbo].[WarrantyDetail] set 
+[AgeSpend]=		 convert (varchar(20) , DATEDIFF(MONTH, WarrantyStartDate, GETDATE())/12 ) + ' Years ' 
+			   + convert (varchar(20) , DATEDIFF(MONTH, WarrantyStartDate, GETDATE())%12 ) + ' Months'  
+
+End
