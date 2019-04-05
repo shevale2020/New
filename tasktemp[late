@@ -1,0 +1,1172 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using eCloseDataAccessLayer.Models;
+using eCloseDataAccessLayer.Utility;
+using System.Web.Mvc;
+using EntityFramework.Extensions;
+using eCloseDataAccessLayer.Entities;
+using System.Data;
+
+namespace eCloseDataAccessLayer.HelperClasses
+{
+    public class TaskTemplateClass
+    {
+        ECloseContext context = new ECloseContext();
+        public List<ECloseBL.Entities.Task> GetTask(int TeamId, int jtStartIndex, int jtPageSize, string TaskName , string jtSorting)
+        {
+
+            if (TaskName != "")
+            {
+                var TotalRecords = context.Tasks.Where(rec => rec.TeamId == TeamId && rec.TaskName == TaskName && rec.IsDeleted == false).OrderByDescending(a => a.Id).Count();
+                var Tasklist = context.Tasks.Where(rec => rec.TeamId == TeamId && rec.TaskName == TaskName && rec.IsDeleted == false).OrderByDescending(a => a.Id)
+                    .Select(a => new ECloseBL.Entities.Task
+                    {
+                        Id = a.Id,
+                        TaskNumber = a.TaskNumber,
+                        TaskName = a.TaskName,
+                        TeamId = a.TeamId,
+                        Frequency = a.Frequency,
+                        WorkflowId = a.WorkflowId,
+                        IsActive = a.IsActive,
+                        IsDeleted = a.IsDeleted,
+                        PriorityId = a.PriorityId,
+                        Description = a.Description,
+                        IntEndDay = a.TaskTemplateusers.Where(x => x.IntEndDay != null && x.IntEndDay != 0).Min(x => x.IntEndDay)??0,
+                        TotalRecords = TotalRecords
+                    }).ToList();
+
+                switch (jtSorting.ToLower())
+                {
+                    case "id desc":
+                        Tasklist = Tasklist.OrderByDescending(tp => tp.Id).ToList();
+                        break;
+                    case "id asc":
+                        Tasklist = Tasklist.OrderBy(tp => tp.Id).ToList();
+                        break;
+                    case "taskname desc":
+                        Tasklist = Tasklist.OrderByDescending(tp => tp.TaskName).ToList();
+                        break;
+                    case "taskname asc":
+                        Tasklist = Tasklist.OrderBy(tp => tp.TaskName).ToList();
+                        break;
+                }
+
+                return Tasklist;
+            }
+            else
+            {
+                var TotalRecords = context.Tasks.Where(rec => rec.TeamId == TeamId && rec.IsDeleted == false).OrderByDescending(a => a.Id).Count();
+                var Tasklist = context.Tasks.Where(rec => rec.TeamId == TeamId && rec.IsDeleted == false).OrderByDescending(a => a.Id)
+                    .Select(a => new ECloseBL.Entities.Task
+                    {
+                        Id = a.Id,
+                        TaskNumber = a.TaskNumber,
+                        TaskName = a.TaskName,
+                        TeamId = a.TeamId,
+                        Frequency = a.Frequency,
+                        WorkflowId = a.WorkflowId,
+                        IsActive = a.IsActive,
+                        IsDeleted = a.IsDeleted,
+                        PriorityId = a.PriorityId,
+                        Description = a.Description,
+                        IntEndDay = a.TaskTemplateusers.Where(x => x.IntEndDay != null && x.IntEndDay != 0).Min(x => x.IntEndDay)??0,
+                        TotalRecords = TotalRecords
+                    });
+                if (jtPageSize != 0)
+                {
+                    switch (jtSorting.ToLower())
+                    {
+                        case "id desc":
+                            return Tasklist.OrderByDescending(tp => tp.Id).Skip(jtStartIndex).Take(jtPageSize).ToList();
+                            //break;
+                        case "id asc":
+                            return  Tasklist.OrderBy(tp => tp.Id).Skip(jtStartIndex).Take(jtPageSize).ToList();
+                            //break;
+                        case "taskname desc":
+                            return Tasklist.OrderByDescending(tp => tp.TaskName).Skip(jtStartIndex).Take(jtPageSize).ToList();
+                            //break;
+                        case "taskname asc":
+                            return Tasklist.OrderBy(tp => tp.TaskName).Skip(jtStartIndex).Take(jtPageSize).ToList();
+                            //break;
+                        default:
+                            return Tasklist.OrderBy(tp => tp.Id).Skip(jtStartIndex).Take(jtPageSize).ToList();
+                            //break;
+                    }
+                }
+                else
+                {
+                    return Tasklist.ToList();
+                }
+            }
+        }
+        public List<TaskTemplateuser> GetTaskTemplateuser(int TaskId)
+        {
+            return context.TaskTemplateusers.Where(rec => rec.TaskId == TaskId && rec.IsDeleted == false).ToList();
+        }
+        public List<User> ListlevelwiseUsers(int TaskId, int level, int tenantId, string Tasktype)
+        {
+            if (Tasktype == "TaskUser")
+            {
+                var Teamid = context.Tasks.Where(rec => rec.Id == TaskId).Select(a => a.TeamId).FirstOrDefault();
+
+                if (level == 0)
+                {
+                    var user = (from uu in context.Users
+                                    // join ut in context.TeamUsers on uu.Id equals ut.UserId
+                                    // join uc in context.UserClientMappings on uu.Id equals uc.UserID
+                                    // where (uc.RoleId != 30 && uc.RoleId != 40 && uc.RoleId != 50 && uc.BUId == BUId && uu.Isdeleted == false)
+                                where ((uu.RoleId == 10 || uu.RoleId == 20 || uu.RoleId == 40) && uu.TenantId == tenantId && uu.Isdeleted == false)//Condition changed Rizwan 10 Apr 2017
+                                select new
+                                {
+                                    Id = uu.Id,
+                                    LoginId = uu.LoginId,
+                                    UserName = uu.UserName
+                                }).ToList().Distinct()
+                                                .Select(x => new User()
+                                                {
+                                                    Id = x.Id,
+                                                    LoginId = x.LoginId,
+                                                    UserName = x.UserName
+                                                });
+                    return user.OrderBy(a => a.UserName).ToList();
+                }
+                else
+                {
+                    var user = (from uu in context.Users
+                                    // join ut in context.TeamUsers on uu.Id equals ut.UserId
+                                    // join uc in context.UserClientMappings on uu.Id equals uc.UserID
+                                    //  where (uc.RoleId != 30 && uc.RoleId != 10 && uc.RoleId != 40 && uc.RoleId != 50 && uc.BUId == BUId && uu.Isdeleted == false)
+                                where ((uu.RoleId == 20 || uu.RoleId == 40) && uu.TenantId == tenantId && uu.Isdeleted == false)//Condition changed Rizwan 10 Apr 2017
+                                select new
+                                {
+                                    Id = uu.Id,
+                                    LoginId = uu.LoginId,
+                                    UserName = uu.UserName
+                                }).ToList().Distinct()
+                                               .Select(x => new User()
+                                               {
+                                                   Id = x.Id,
+                                                   LoginId = x.LoginId,
+                                                   UserName = x.UserName 
+                                               });
+                    return user.OrderBy(a => a.UserName).ToList();
+                }
+            }
+            else
+            {
+
+                // var Teamid = context.WorkbasketTasks.Where(rec =>rec.Id == TaskId).Select(a => a.TeamId).FirstOrDefault();
+
+                if (level == 0)
+                {
+                    var user = (from uu in context.Users
+                                    // join ut in context.TeamUsers on uu.Id equals ut.UserId
+                                    // join uc in context.UserClientMappings on uu.Id equals uc.UserID
+                                    //  where (uc.RoleId != 30 && uc.RoleId != 40 && uc.RoleId != 50 && uc.BUId == BUId && uu.Isdeleted == false)
+                                where ((uu.RoleId == 10 || uu.RoleId == 20 || uu.RoleId == 40) && uu.TenantId == tenantId && uu.Isdeleted == false)//Condition changed Rizwan 10 Apr 2017
+                                select new
+                                {
+                                    Id = uu.Id,
+                                    LoginId = uu.LoginId,
+                                    UserName = uu.UserName
+                                }).ToList().Distinct()
+                                                .Select(x => new User()
+                                                {
+                                                    Id = x.Id,
+                                                    LoginId = x.LoginId,
+                                                    UserName = x.UserName
+                                                });
+                    return user.OrderBy(a => a.UserName).ToList();
+                }
+                else
+                {
+                    var user = (from uu in context.Users
+                                    // join ut in context.TeamUsers on uu.Id equals ut.UserId
+                                    // join uc in context.UserClientMappings on uu.Id equals uc.UserID
+                                    //where (uc.RoleId != 30 && uc.RoleId != 10 && uc.RoleId != 40 && uc.RoleId != 50 && uc.BUId == BUId && uu.Isdeleted == false)
+                                where ((uu.RoleId == 20 || uu.RoleId == 40) && uu.TenantId == tenantId && uu.Isdeleted == false)//Condition changed Rizwan 10 Apr 2017
+                                select new
+                                {
+                                    Id = uu.Id,
+                                    LoginId = uu.LoginId,
+                                    UserName = uu.UserName
+                                }).ToList().Distinct()
+                                               .Select(x => new User()
+                                               {
+                                                   Id = x.Id,
+                                                   LoginId = x.LoginId,
+                                                   UserName = x.UserName
+                                               });
+                    return user.OrderBy(a => a.UserName).ToList();
+
+                }
+            }
+        }
+
+        public int UpdateTaskTemplateuser(TaskTemplateuser entity,string frequency)
+        {
+            int i = 0;
+
+            if (entity.Level > 0)
+            {
+                
+             TaskTemplateuser record ;
+                record = context.TaskTemplateusers.Where(a => a.TaskId == entity.TaskId && a.Level == (entity.Level-1) && a.IsDeleted == false).FirstOrDefault();
+                //foreach (var record in records)
+                //{
+                    if (frequency == "Weekly")
+                    {
+                        if (record.W1ExtEndDay <= entity.W1ExtEndDay && record.W2ExtEndDay <= entity.W2ExtEndDay && record.W3ExtEndDay <= entity.W3ExtEndDay && record.W4ExtEndDay <= entity.W4ExtEndDay && record.W1IntEndDay <= entity.W1IntEndDay && record.W2IntEndDay <= entity.W2IntEndDay && record.W3IntEndDay <= entity.W3IntEndDay && record.W4IntEndDay <= entity.W4IntEndDay && (Convert.ToDateTime(record.W1ExtEndTime) < Convert.ToDateTime(entity.W1ExtEndTime) && Convert.ToDateTime(record.W2ExtEndTime) <Convert.ToDateTime(entity.W2ExtEndTime) && Convert.ToDateTime(record.W3ExtEndTime) < Convert.ToDateTime(entity.W3ExtEndTime) && Convert.ToDateTime(record.W4ExtEndTime) < Convert.ToDateTime(entity.W4ExtEndTime) && Convert.ToDateTime(record.W1IntEndTime) < Convert.ToDateTime(entity.W1IntEndTime) && Convert.ToDateTime(record.W2IntEndTime) < Convert.ToDateTime(entity.W2IntEndTime) && Convert.ToDateTime(record.W3IntEndTime) < Convert.ToDateTime(entity.W3IntEndTime) && Convert.ToDateTime(record.W4IntEndTime) < Convert.ToDateTime(entity.W4IntEndTime)))
+                            i = 1;
+                        else
+                            i = 2;
+                    }
+                    else 
+                     {
+                        if (record.IntEndDay <= entity.IntEndDay && record.ExtEndDay <= entity.ExtEndDay && Convert.ToDateTime(record.ExtEndTime) < Convert.ToDateTime(entity.ExtEndTime) && Convert.ToDateTime(record.IntEndTime) < Convert.ToDateTime(entity.IntEndTime))
+                            i = 1;
+                        else
+                            i = 2;
+                    }
+                //}
+
+                if (i == 1)
+                {
+                    TaskTemplateuser Tasktemplate = context.TaskTemplateusers.Where(a => a.Id == entity.Id ).FirstOrDefault();
+
+                    if (context.TaskTemplateusers.Any(p => p.UserId == entity.UserId && p.TaskId == Tasktemplate.TaskId && p.Id != Tasktemplate.Id && p.IsDeleted == false))
+                    {
+                        return i=3;
+                    }
+                    else
+                    {
+                        Tasktemplate.UserId = entity.UserId;
+                        Tasktemplate.IntEndDay = entity.IntEndDay;
+                        Tasktemplate.IntEndTime = entity.IntEndTime;
+                        Tasktemplate.ExtEndDay = entity.ExtEndDay;
+                        Tasktemplate.ExtEndTime = entity.ExtEndTime;
+                        Tasktemplate.W1IntEndDay = entity.W1IntEndDay;
+                        Tasktemplate.W2IntEndDay = entity.W2IntEndDay;
+                        Tasktemplate.W3IntEndDay = entity.W3IntEndDay;
+                        Tasktemplate.W4IntEndDay = entity.W4IntEndDay;
+                        Tasktemplate.W1IntEndTime = entity.W1IntEndTime;
+                        Tasktemplate.W2IntEndTime = entity.W2IntEndTime;
+                        Tasktemplate.W3IntEndTime = entity.W3IntEndTime;
+                        Tasktemplate.W4IntEndTime = entity.W4IntEndTime;
+                        Tasktemplate.W1ExtEndDay = entity.W1ExtEndDay;
+                        Tasktemplate.W2ExtEndDay = entity.W2ExtEndDay;
+                        Tasktemplate.W3ExtEndDay = entity.W3ExtEndDay;
+                        Tasktemplate.W4ExtEndDay = entity.W4ExtEndDay;
+                        Tasktemplate.W1ExtEndTime = entity.W1ExtEndTime;
+                        Tasktemplate.W2ExtEndTime = entity.W2ExtEndTime;
+                        Tasktemplate.W3ExtEndTime = entity.W3ExtEndTime;
+                        Tasktemplate.W4ExtEndTime = entity.W4ExtEndTime;
+                        Tasktemplate.IntDuration = entity.IntDuration;
+                        Tasktemplate.Extduration = entity.Extduration;
+                        Tasktemplate.UpdatyedBy = entity.CreatedBy;
+                        Tasktemplate.UpdatedOn = entity.CreatedOn;
+                        return context.SaveChanges();
+                    }
+                    
+                }
+                else
+                {
+                    return i;
+                }
+            }
+
+            else
+            {
+                TaskTemplateuser Tasktemplate = context.TaskTemplateusers.Where(a => a.Id == entity.Id).FirstOrDefault();
+
+                if (context.TaskTemplateusers.Any(p => p.UserId == entity.UserId && p.TaskId == Tasktemplate.TaskId && p.Id != Tasktemplate.Id && p.IsDeleted == false))
+                {
+                    return i=3;
+                }
+                else
+                {
+                    Tasktemplate.UserId = entity.UserId;
+                Tasktemplate.IntEndDay = entity.IntEndDay;
+                Tasktemplate.IntEndTime = entity.IntEndTime;
+                Tasktemplate.ExtEndDay = entity.ExtEndDay;
+                Tasktemplate.ExtEndTime = entity.ExtEndTime;
+                Tasktemplate.W1IntEndDay = entity.W1IntEndDay;
+                Tasktemplate.W2IntEndDay = entity.W2IntEndDay;
+                Tasktemplate.W3IntEndDay = entity.W3IntEndDay;
+                Tasktemplate.W4IntEndDay = entity.W4IntEndDay;
+                Tasktemplate.W1IntEndTime = entity.W1IntEndTime;
+                Tasktemplate.W2IntEndTime = entity.W2IntEndTime;
+                Tasktemplate.W3IntEndTime = entity.W3IntEndTime;
+                Tasktemplate.W4IntEndTime = entity.W4IntEndTime;
+                Tasktemplate.W1ExtEndDay = entity.W1ExtEndDay;
+                Tasktemplate.W2ExtEndDay = entity.W2ExtEndDay;
+                Tasktemplate.W3ExtEndDay = entity.W3ExtEndDay;
+                Tasktemplate.W4ExtEndDay = entity.W4ExtEndDay;
+                Tasktemplate.W1ExtEndTime = entity.W1ExtEndTime;
+                Tasktemplate.W2ExtEndTime = entity.W2ExtEndTime;
+                Tasktemplate.W3ExtEndTime = entity.W3ExtEndTime;
+                Tasktemplate.W4ExtEndTime = entity.W4ExtEndTime;
+                Tasktemplate.IntDuration = entity.IntDuration;
+                Tasktemplate.Extduration = entity.Extduration;
+                Tasktemplate.UpdatyedBy = entity.CreatedBy;
+                Tasktemplate.UpdatedOn = entity.CreatedOn;
+                return context.SaveChanges();
+                 }
+            }
+        }
+
+        public int AddTask(Task entity)
+        {
+            int i = 0;
+            Task task = new Task();
+            TaskTemplateuser Tasktemplate = new TaskTemplateuser();
+            if (context.Tasks.Any(p => p.TeamId == entity.TeamId && p.TaskName == entity.TaskName))
+            {
+                return i;
+            }
+            var levels = context.Workflows.Where(rec => rec.Id == entity.WorkflowId).Select(a => a.Levels).FirstOrDefault();
+
+            task.TaskName = entity.TaskName;
+            task.TeamId = entity.TeamId;
+            task.Frequency = entity.Frequency;
+            task.WorkflowId = entity.WorkflowId;
+            task.TenantId = entity.TenantId;
+            task.PriorityId = entity.PriorityId;
+            task.Description = Html.Row(entity.Description);
+            task.CreatedBy = entity.CreatedBy;
+            task.CreatedOn = entity.CreatedOn;
+            context.Tasks.Add(task);
+            context.SaveChanges();
+            var MaxId = context.Tasks.Max(a => a.Id);
+            for (i = 0; i <= levels; i++)
+            {
+                Tasktemplate.TaskId = MaxId;
+                Tasktemplate.Level = i;
+                Tasktemplate.TenantId = entity.TenantId;
+                Tasktemplate.CreatedBy = entity.CreatedBy;
+                Tasktemplate.CreatedOn = entity.CreatedOn;
+                context.TaskTemplateusers.Add(Tasktemplate);
+                context.SaveChanges();
+            }
+
+            return 1;
+        }
+        public List<ECloseBL.Entities.DependentTask> GetdependentTask(int TaskId)
+        {
+            return context.DependentTasks.Where(rec => rec.TaskId == TaskId && rec.IsDeleted == false).Select(rec => new ECloseBL.Entities.DependentTask{ Location = rec.Task1.Team.Location.LocationName,Team = rec.Task1.Team.TeamName, DependentTaskId = rec.DependentTaskId,IntEndDay = rec.Task1.TaskTemplateusers.Where(x => x.IntEndDay != null||x.IntEndDay!=0).Min(X => X.IntEndDay),TeamId = rec.Task1.TeamId, Id = rec.Id }).ToList();
+        }
+        public int AdddependentTask(DependentTask entity)
+        {
+
+            int i = 0;
+            DependentTask depedent = new DependentTask();
+
+
+            if (context.DependentTasks.Any(p => p.TaskId == entity.TaskId && p.DependentTaskId == entity.DependentTaskId && p.IsDeleted == false))
+            {
+                return i;
+            }
+            else if (entity.TaskId == entity.DependentTaskId)
+            {
+                return i;
+            }
+            else if (context.DependentTasks.Any(p => p.TaskId == entity.DependentTaskId && p.DependentTaskId == entity.TaskId && p.IsDeleted == false))
+            {
+                return i;
+            }
+            else
+            {
+                depedent.TaskId = entity.TaskId;
+                depedent.DependentTaskId = entity.DependentTaskId;
+                depedent.TenantId = entity.TenantId;
+                depedent.CreatedBy = entity.CreatedBy;
+                depedent.CreatedOn = entity.CreatedOn;
+                context.DependentTasks.Add(depedent);
+                return context.SaveChanges();
+            }
+        }
+        public DependentTask DeletedependentTask(int Id)
+        {
+            DependentTask Dependent = context.DependentTasks.Where(a => a.Id == Id).FirstOrDefault();
+            Dependent.IsDeleted = true;
+            context.SaveChanges();
+            return Dependent;
+        }
+        public List<ECloseBL.Entities.WorkbasketTaskentity> GetAdhocTask(int TeamId, int jtStartIndex, int jtPageSize, string TaskName , string jtSorting)
+        {
+            if (TaskName != "")
+            {
+                var TotalRecords = context.WorkbasketTasks.Where(rec => rec.TeamId == TeamId && rec.TaskName == TaskName && rec.TaskId == null && rec.IsDeleted == false).OrderByDescending(a => a.Id).Count();
+                var AdhocTaskList = context.WorkbasketTasks.Where(rec => rec.TeamId == TeamId && rec.TaskName == TaskName && rec.TaskId == null && rec.IsDeleted == false).OrderByDescending(a => a.Id).Skip(jtStartIndex).Take(jtPageSize)
+                    .Select(a => new ECloseBL.Entities.WorkbasketTaskentity
+                    {
+                        Id = a.Id,
+                        TaskName = a.TaskName,
+                        TeamId = a.TeamId,
+                        PeriodId = a.PeriodId,
+                        WorkflowId = a.WorkflowId,
+                        PriorityId = a.PriorityId,
+                        Description = a.Description,
+                        TotalRecords = TotalRecords
+                    }).ToList();
+
+                switch (jtSorting.ToLower())
+                {
+                    case "id desc":
+                        AdhocTaskList = AdhocTaskList.OrderByDescending(tp => tp.Id).ToList();
+                        break;
+                    case "id asc":
+                        AdhocTaskList = AdhocTaskList.OrderBy(tp => tp.Id).ToList();
+                        break;
+                    case "taskname desc":
+                        AdhocTaskList = AdhocTaskList.OrderByDescending(tp => tp.TaskName).ToList();
+                        break;
+                    case "taskname asc":
+                        AdhocTaskList = AdhocTaskList.OrderBy(tp => tp.TaskName).ToList();
+                        break;
+                    case "periodid asc":
+                        AdhocTaskList = AdhocTaskList.OrderBy(tp => tp.PeriodId).ToList();
+                        break;
+                    case "periodid desc":
+                        AdhocTaskList = AdhocTaskList.OrderByDescending(tp => tp.PeriodId).ToList();
+                        break;
+                }
+                return AdhocTaskList;
+            }
+            else
+            {
+                var TotalRecords = context.WorkbasketTasks.Where(rec => rec.TeamId == TeamId && rec.TaskId == null && rec.IsDeleted == false).OrderByDescending(a => a.Id).Count();
+                var AdhocTaskList = context.WorkbasketTasks.Where(rec => rec.TeamId == TeamId && rec.TaskId == null && rec.IsDeleted == false).OrderByDescending(a => a.Id).Skip(jtStartIndex).Take(jtPageSize)
+                    .Select(a => new ECloseBL.Entities.WorkbasketTaskentity
+                    {
+                        Id = a.Id,
+                        TaskName = a.TaskName,
+                        TeamId = a.TeamId,
+                        PeriodId = a.PeriodId,
+                        WorkflowId = a.WorkflowId,
+                        PriorityId = a.PriorityId,
+                        Description = a.Description,
+                        TotalRecords = TotalRecords
+                    }).ToList();
+
+                switch (jtSorting.ToLower())
+                {
+                    case "id desc":
+                        AdhocTaskList = AdhocTaskList.OrderByDescending(tp => tp.Id).ToList();
+                        break;
+                    case "id asc":
+                        AdhocTaskList = AdhocTaskList.OrderBy(tp => tp.Id).ToList();
+                        break;
+                    case "taskname desc":
+                        AdhocTaskList = AdhocTaskList.OrderByDescending(tp => tp.TaskName).ToList();
+                        break;
+                    case "taskname asc":
+                        AdhocTaskList = AdhocTaskList.OrderBy(tp => tp.TaskName).ToList();
+                        break;
+                    case "periodid asc":
+                        AdhocTaskList = AdhocTaskList.OrderBy(tp => tp.PeriodId).ToList();
+                        break;
+                    case "periodid desc":
+                        AdhocTaskList = AdhocTaskList.OrderByDescending(tp => tp.PeriodId).ToList();
+                        break;
+                }
+                return AdhocTaskList;
+            }
+        }
+        public int AddAdhocTask(WorkbasketTask entity)
+        {
+            int i = 0;
+            if (context.WorkbasketTasks.Any(p => p.TeamId == entity.TeamId && p.TaskName == entity.TaskName && p.PeriodId == entity.PeriodId))
+            {
+                return i;
+            }
+            var LocationId = context.Teams.Where(rec => rec.Id == entity.TeamId).Select(a => a.LocationId).FirstOrDefault();
+            var TimeZone = context.Locations.Where(rec => rec.Id == LocationId).Select(a => a.TimeZone).FirstOrDefault();
+            WorkbasketTask workbasketTask = new WorkbasketTask();
+            WorkbasketTaskUser workbasketTaskUser = new WorkbasketTaskUser();
+            var levels = context.Workflows.Where(rec => rec.Id == entity.WorkflowId).Select(a => a.Levels).FirstOrDefault();
+
+            workbasketTask.TaskName = entity.TaskName;
+            workbasketTask.TeamId = entity.TeamId;
+            workbasketTask.PeriodId = entity.PeriodId;
+            workbasketTask.Frequency = entity.Frequency;
+            workbasketTask.WorkflowId = entity.WorkflowId;
+            workbasketTask.StatusId = context.WorkflowActions.Where(rec => rec.WorkflowId == entity.WorkflowId && rec.Status == "Pending" && rec.WorkflowLevel == 0).Select(a => a.Id).FirstOrDefault();
+            workbasketTask.TenantId = entity.TenantId;
+            workbasketTask.TimeZone = TimeZone;
+            workbasketTask.PriorityId = entity.PriorityId;
+            workbasketTask.Description = entity.Description;
+            workbasketTask.CreatedBy = entity.CreatedBy;
+            workbasketTask.CreatedOn = entity.CreatedOn;
+            context.WorkbasketTasks.Add(workbasketTask);
+            context.SaveChanges();
+            var MaxId = context.WorkbasketTasks.Where(rec => rec.TaskId == null).Max(a => a.Id);
+            for (i = 0; i <= levels; i++)
+            {
+                workbasketTaskUser.TenantId = entity.TenantId;
+                workbasketTaskUser.WorkbasketTaskId = MaxId;
+                workbasketTaskUser.WFLevel = (short)i;
+                workbasketTaskUser.CreatedBy = entity.CreatedBy;
+                workbasketTaskUser.CreatedOn = entity.CreatedOn;
+                context.WorkbasketTaskUsers.Add(workbasketTaskUser);
+                context.SaveChanges();
+            }
+            return MaxId;
+        }
+        public List<WorkbasketTaskUser> GetAdhocTaskTemplateuser(int WorkbasketTaskId)
+        {
+            return context.WorkbasketTaskUsers.Where(rec => rec.WorkbasketTaskId == WorkbasketTaskId).ToList();
+        }
+        public int UpdateAdhocTaskTemplateuser(WorkbasketTaskUser entity)
+        {
+            int i = 0;
+            if (entity.WFLevel > 0)
+            {
+
+                WorkbasketTaskUser record;
+                record = context.WorkbasketTaskUsers.Where(a => a.WorkbasketTaskId == entity.WorkbasketTaskId && a.WFLevel == (entity.WFLevel - 1) && a.IsDeleted == false).FirstOrDefault();
+                if (record.IntEndDay <= entity.IntEndDay && record.ExtEndDay <= entity.ExtEndDay && Convert.ToDateTime(record.ExtEndTime) < Convert.ToDateTime(entity.ExtEndTime) && Convert.ToDateTime(record.IntEndTime) < Convert.ToDateTime(entity.IntEndTime))
+                { i = 1; }
+                else
+                { i = 2; }
+
+                if (i == 1)
+                {
+                    WorkbasketTaskUser WorkbasketTaskUser = context.WorkbasketTaskUsers.Where(a => a.Id == entity.Id).FirstOrDefault();
+                    var Periodid = context.WorkbasketTasks.Where(rec => rec.Id == WorkbasketTaskUser.WorkbasketTaskId).Select(a => a.PeriodId).FirstOrDefault();
+                    int LstWorkday = (int)context.Periods.Where(p => p.Id == Periodid).Select(a => a.PositiveDays).FirstOrDefault();
+                    int TeamId = context.WorkbasketTasks.Where(rec => rec.Id == WorkbasketTaskUser.WorkbasketTaskId).Select(a => a.TeamId).FirstOrDefault();
+                    if (context.WorkbasketTaskUsers.Any(p => p.UserId == entity.UserId && p.WorkbasketTaskId == entity.WorkbasketTaskId && p.Id != entity.Id && p.IsDeleted==false))
+                    {
+                        return i=3;
+                    }
+                    else
+                    {
+
+                        WorkbasketTaskUser.UserId = entity.UserId;
+                        WorkbasketTaskUser.IntEndDay = entity.IntEndDay;
+                        WorkbasketTaskUser.IntEndTime = entity.IntEndTime;
+                        WorkbasketTaskUser.ExtEndDay = entity.ExtEndDay;
+                        WorkbasketTaskUser.ExtEndTime = entity.ExtEndTime;
+                        if (entity.IntEndDay == null)
+                        {
+                            WorkbasketTaskUser.EndDateInt = null;
+                        }
+                        else
+                        {
+                            if (entity.IntEndTime == null)
+                            {
+                                var tm = TimeSpan.Parse("23:59");
+                                WorkbasketTaskUser.EndDateInt = context.PeriodDays.Where(rec => rec.PeriodId == Periodid && rec.WorkDay == (entity.IntEndDay == 0 ? (short?)LstWorkday : entity.IntEndDay) && rec.IsDeleted == false).Select(a => a.CalenderDate).FirstOrDefault() + tm;
+                            }
+                            else
+                            {
+                                var tm = TimeSpan.Parse(entity.IntEndTime);
+                                WorkbasketTaskUser.EndDateInt = context.PeriodDays.Where(rec => rec.PeriodId == Periodid && rec.WorkDay == (entity.IntEndDay == 0 ? (short?)LstWorkday : entity.IntEndDay) && rec.IsDeleted == false).Select(a => a.CalenderDate).FirstOrDefault() + tm;
+                            }
+                        }
+                        if (entity.ExtEndDay == null)
+                        {
+                            WorkbasketTaskUser.EndDateExt = null;
+                        }
+                        else
+                        {
+                            if (entity.ExtEndTime == null)
+                            {
+                                var tm = TimeSpan.Parse("23:59");
+                                WorkbasketTaskUser.EndDateExt = context.PeriodDays.Where(rec => rec.PeriodId == Periodid && rec.WorkDay == (entity.ExtEndDay == 0 ? (short?)LstWorkday : entity.ExtEndDay) && rec.IsDeleted == false).Select(a => a.CalenderDate).FirstOrDefault() + tm;
+                            }
+                            else
+                            {
+                                var tm = TimeSpan.Parse(entity.ExtEndTime);
+                                WorkbasketTaskUser.EndDateExt = context.PeriodDays.Where(rec => rec.PeriodId == Periodid && rec.WorkDay == (entity.ExtEndDay == 0 ? (short?)LstWorkday : entity.ExtEndDay) && rec.IsDeleted == false).Select(a => a.CalenderDate).FirstOrDefault() + tm;
+                            }
+                        }
+                        WorkbasketTaskUser.UpdatedBy = entity.CreatedBy;
+                        //WorkbasketTaskUser.UpdatedOn = entity.CreatedOn;
+                        WorkbasketTaskUser.UpdatedOn = DateTime.UtcNow;
+
+                        //WorkbasketTaskUser.WorkbasketTask.TeamId = TeamId;
+                        //Get TimeZone applicable to team as per location
+                        var timeZone = (from tm in context.Teams
+                                        join loc in context.Locations on tm.LocationId equals loc.Id
+                                        where tm.Id == TeamId
+                                        select new { TimeZone = loc.TimeZone }
+                                           ).FirstOrDefault();
+
+                        //Get current time as per time zone
+                        DateTime currentTime = CurrentTime.Get(timeZone.TimeZone);
+                        //Update the tasks for Red
+                        if (WorkbasketTaskUser.EndDateInt > currentTime)
+                        {
+                            WorkbasketTaskUser.RAGStatusInt = ECloseBL.Entities.Enums.RAGStatus.G.ToString();
+                        }
+                        else
+                        { WorkbasketTaskUser.RAGStatusInt = ECloseBL.Entities.Enums.RAGStatus.R.ToString(); }
+                        //Update the tasks for Red
+                        if (WorkbasketTaskUser.EndDateExt > currentTime)
+                        {
+                            WorkbasketTaskUser.RAGStatusExt = ECloseBL.Entities.Enums.RAGStatus.G.ToString();
+                        }
+                        else
+                        { WorkbasketTaskUser.RAGStatusExt = ECloseBL.Entities.Enums.RAGStatus.R.ToString(); }
+                        //End for Due Date setting
+                        return context.SaveChanges();
+                    }
+                }
+                else
+                {
+                    return i;
+                }
+            }
+            else {
+                WorkbasketTaskUser WorkbasketTaskUser = context.WorkbasketTaskUsers.Where(a => a.Id == entity.Id).FirstOrDefault();
+                var Periodid = context.WorkbasketTasks.Where(rec => rec.Id == WorkbasketTaskUser.WorkbasketTaskId).Select(a => a.PeriodId).FirstOrDefault();
+                int LstWorkday = (int)context.Periods.Where(p => p.Id == Periodid).Select(a => a.PositiveDays).FirstOrDefault();
+                int TeamId = context.WorkbasketTasks.Where(rec => rec.Id == WorkbasketTaskUser.WorkbasketTaskId).Select(a => a.TeamId).FirstOrDefault();
+                if (context.WorkbasketTaskUsers.Any(p => p.UserId == entity.UserId && p.WorkbasketTaskId == WorkbasketTaskUser.WorkbasketTaskId && p.Id != WorkbasketTaskUser.Id))
+                {
+                    return i=3;
+                }
+                else
+                {
+
+                    WorkbasketTaskUser.UserId = entity.UserId;
+                    WorkbasketTaskUser.IntEndDay = entity.IntEndDay;
+                    WorkbasketTaskUser.IntEndTime = entity.IntEndTime;
+                    WorkbasketTaskUser.ExtEndDay = entity.ExtEndDay;
+                    WorkbasketTaskUser.ExtEndTime = entity.ExtEndTime;
+                    if (entity.IntEndDay == null)
+                    {
+                        WorkbasketTaskUser.EndDateInt = null;
+                    }
+                    else
+                    {
+                        if (entity.IntEndTime == null)
+                        {
+                            var tm = TimeSpan.Parse("23:59");
+                            WorkbasketTaskUser.EndDateInt = context.PeriodDays.Where(rec => rec.PeriodId == Periodid && rec.WorkDay == (entity.IntEndDay == 0 ? (short?)LstWorkday : entity.IntEndDay) && rec.IsDeleted == false).Select(a => a.CalenderDate).FirstOrDefault() + tm;
+                        }
+                        else
+                        {
+                            var tm = TimeSpan.Parse(entity.IntEndTime);
+                            WorkbasketTaskUser.EndDateInt = context.PeriodDays.Where(rec => rec.PeriodId == Periodid && rec.WorkDay == (entity.IntEndDay == 0 ? (short?)LstWorkday : entity.IntEndDay) && rec.IsDeleted == false).Select(a => a.CalenderDate).FirstOrDefault() + tm;
+                        }
+                    }
+                    if (entity.ExtEndDay == null)
+                    {
+                        WorkbasketTaskUser.EndDateExt = null;
+                    }
+                    else
+                    {
+                        if (entity.ExtEndTime == null)
+                        {
+                            var tm = TimeSpan.Parse("23:59");
+                            WorkbasketTaskUser.EndDateExt = context.PeriodDays.Where(rec => rec.PeriodId == Periodid && rec.WorkDay == (entity.ExtEndDay == 0 ? (short?)LstWorkday : entity.ExtEndDay) && rec.IsDeleted == false).Select(a => a.CalenderDate).FirstOrDefault() + tm;
+                        }
+                        else
+                        {
+                            var tm = TimeSpan.Parse(entity.ExtEndTime);
+                            WorkbasketTaskUser.EndDateExt = context.PeriodDays.Where(rec => rec.PeriodId == Periodid && rec.WorkDay == (entity.ExtEndDay == 0 ? (short?)LstWorkday : entity.ExtEndDay) && rec.IsDeleted == false).Select(a => a.CalenderDate).FirstOrDefault() + tm;
+                        }
+                    }
+                    WorkbasketTaskUser.UpdatedBy = entity.CreatedBy;
+                    //WorkbasketTaskUser.UpdatedOn = entity.CreatedOn;
+                    WorkbasketTaskUser.UpdatedOn = DateTime.UtcNow;
+
+                    //WorkbasketTaskUser.WorkbasketTask.TeamId = TeamId;
+                    //Get TimeZone applicable to team as per location
+                    var timeZone = (from tm in context.Teams
+                                    join loc in context.Locations on tm.LocationId equals loc.Id
+                                    where tm.Id == TeamId
+                                    select new { TimeZone = loc.TimeZone }
+                                       ).FirstOrDefault();
+
+                    //Get current time as per time zone
+                    DateTime currentTime = CurrentTime.Get(timeZone.TimeZone);
+                    //Update the tasks for Red
+                    if (WorkbasketTaskUser.EndDateInt > currentTime)
+                    {
+                        WorkbasketTaskUser.RAGStatusInt = ECloseBL.Entities.Enums.RAGStatus.G.ToString();
+                    }
+                    else
+                    { WorkbasketTaskUser.RAGStatusInt = ECloseBL.Entities.Enums.RAGStatus.R.ToString(); }
+                    //Update the tasks for Red
+                    if (WorkbasketTaskUser.EndDateExt > currentTime)
+                    {
+                        WorkbasketTaskUser.RAGStatusExt = ECloseBL.Entities.Enums.RAGStatus.G.ToString();
+                    }
+                    else
+                    { WorkbasketTaskUser.RAGStatusExt = ECloseBL.Entities.Enums.RAGStatus.R.ToString(); }
+                    //End for Due Date setting
+                    return context.SaveChanges();
+                }
+            }
+        }
+
+        public int MarkActiveDeactive(int Id)
+        {
+            Task objClient = context.Tasks.Where(rec => rec.Id == Id).FirstOrDefault();
+            if (objClient.IsActive == true)
+            {
+                objClient.IsActive = false;
+            }
+            else
+            {
+                objClient.IsActive = true;
+            }
+            context.SaveChanges();
+            return objClient.Id;
+
+        }
+
+        public List<ECloseBL.Entities.Task> UploadTask(List<ECloseBL.Entities.Task> list)
+        {
+            List<ECloseBL.Entities.Task> task = new List<ECloseBL.Entities.Task>();
+
+            var TaskNameList = list.Select(x => x.TaskName).ToList();
+            var TeamId = list.Select(x => x.TeamId).FirstOrDefault();
+
+            var Tasknameduplicate = context.Tasks.Where(x => TaskNameList.Contains(x.TaskName) && x.TeamId == TeamId).Select(a => a.TaskName).ToList();
+
+            var duplicate = list.Where(x => Tasknameduplicate.Contains(x.TaskName)).ToList();
+
+
+            if (duplicate.Count > 0)
+            {
+                foreach (var rec in duplicate)
+                {
+                    ECloseBL.Entities.Task ExceptionTask = new ECloseBL.Entities.Task();
+                    ExceptionTask.TaskName = rec.TaskName;
+                    ExceptionTask.Frequency = rec.Frequency;
+                    ExceptionTask.Workflow = rec.Workflow;
+                    ExceptionTask.Priority = rec.Priority;
+                    ExceptionTask.Description = rec.Description;
+                    ExceptionTask.Exception = "Task name already exist";
+                    task.Add(ExceptionTask);
+                }
+
+                return task;
+            }
+
+            var WorkflownotPrsnt = list.Where(x => x.WorkflowId == 0).ToList();
+
+            if (WorkflownotPrsnt.Count > 0)
+            {
+                foreach (var rec in WorkflownotPrsnt)
+                {
+                    ECloseBL.Entities.Task ExceptionTask = new ECloseBL.Entities.Task();
+                    ExceptionTask.TaskName = rec.TaskName;
+                    ExceptionTask.Frequency = rec.Frequency;
+                    ExceptionTask.Workflow = rec.Workflow;
+                    ExceptionTask.Priority = rec.Priority;
+                    ExceptionTask.Description = rec.Description;
+                    ExceptionTask.Exception = "Workflow not found";
+                    task.Add(ExceptionTask);
+                }
+                return task;
+            }
+
+
+            if (Tasknameduplicate.Count == 0 && WorkflownotPrsnt.Count == 0)
+            {
+                var tasklist = list.Where(x => x.WorkflowId != 0).Select(tsk => new Task()
+                {
+                    TaskName = tsk.TaskName,
+                    WorkflowId = tsk.WorkflowId,
+                    Frequency = tsk.Frequency,
+                    TeamId = tsk.TeamId,
+                    PriorityId = tsk.PriorityId,
+                    TenantId = tsk.TenantId,
+                    Description = tsk.Description,
+                    CreatedBy = tsk.CreatedBy,
+                    CreatedOn = tsk.CreatedOn
+                }).ToList();
+                context.Tasks.AddRange(tasklist);
+                context.SaveChanges();
+
+                List<TaskUploadLevelList> LevelList = (from ul in tasklist
+                                                       select new { Id = ul.Id, WorkFlowId = ul.WorkflowId, CreatedBy = ul.CreatedBy, CreatedOn = ul.CreatedOn }).Select
+                                                       (x => new TaskUploadLevelList
+                                                       {
+                                                           TaskId = x.Id,
+                                                           WorkflowId = x.WorkFlowId,
+                                                           Level = context.Workflows.Where(rec => rec.Id == x.WorkFlowId).Select(a => a.Levels).FirstOrDefault(),
+                                                           CreatedBy = x.CreatedBy,
+                                                           CreatedOn = x.CreatedOn
+                                                       }).ToList();
+
+                var Maxlevel = LevelList.Select(a => a.Level).Max();
+
+
+                for (int i = 0; i <= Maxlevel; i++)
+                {
+                    var TaskUser = LevelList.Where(x => x.Level >= i).Select(Tskuser => new TaskTemplateuser()
+                    // var tasklist = list.Where(x => x.WorkflowId != 0).Select(tsk => new Task()
+                    {
+                        TaskId = Tskuser.TaskId,
+                        Level = i,
+                        CreatedBy = Tskuser.CreatedBy,
+                        CreatedOn = Tskuser.CreatedOn
+                    }).ToList();
+                    context.TaskTemplateusers.AddRange(TaskUser);
+                    context.SaveChanges();
+                }
+
+            }
+            return task;
+        }
+
+        public List<ECloseBL.Entities.WorkbasketTaskentity> UploadAdhocTask(List<ECloseBL.Entities.WorkbasketTaskentity> WorkBasketTaskList)
+        {
+            List<ECloseBL.Entities.WorkbasketTaskentity> task = new List<ECloseBL.Entities.WorkbasketTaskentity>();
+
+            var TaskNameList = WorkBasketTaskList.Select(x => x.TaskName).ToList();
+            var TeamId = WorkBasketTaskList.Select(x => x.TeamId).FirstOrDefault();
+            var LocationId = context.Teams.Where(rec => rec.Id == TeamId).Select(a => a.LocationId).FirstOrDefault();
+            var TimeZone = context.Locations.Where(rec => rec.Id == LocationId).Select(a => a.TimeZone).FirstOrDefault();
+            var PeriodId = WorkBasketTaskList.Select(x => x.PeriodId).FirstOrDefault();
+            var Tasknameduplicate = context.WorkbasketTasks.Where(x => TaskNameList.Contains(x.TaskName) && x.TeamId == TeamId && x.PeriodId == PeriodId).Select(a => a.TaskName).ToList();
+
+            var duplicate = WorkBasketTaskList.Where(x => Tasknameduplicate.Contains(x.TaskName)).ToList();
+
+
+            if (duplicate.Count > 0)
+            {
+                foreach (var rec in duplicate)
+                {
+                    ECloseBL.Entities.WorkbasketTaskentity ExceptionTask = new ECloseBL.Entities.WorkbasketTaskentity();
+
+                    ExceptionTask.TaskName = rec.TaskName;
+                    ExceptionTask.Workflow = rec.Workflow;
+                    ExceptionTask.Priority = rec.Priority;
+                    ExceptionTask.Description = rec.Description;
+                    ExceptionTask.Exception = "Task name already exist";
+                    task.Add(ExceptionTask);
+                }
+
+                return task;
+            }
+
+            var WorkflownotPrsnt = WorkBasketTaskList.Where(x => x.WorkflowId == 0).ToList();
+
+            if (WorkflownotPrsnt.Count > 0)
+            {
+                foreach (var rec in WorkflownotPrsnt)
+                {
+                    ECloseBL.Entities.WorkbasketTaskentity ExceptionTask = new ECloseBL.Entities.WorkbasketTaskentity();
+
+                    ExceptionTask.TaskName = rec.TaskName;
+                    ExceptionTask.Workflow = rec.Workflow;
+                    ExceptionTask.Priority = rec.Priority;
+                    ExceptionTask.Description = rec.Description;
+                    ExceptionTask.Exception = "Workflow not found";
+                    task.Add(ExceptionTask);
+                }
+
+                return task;
+            }
+
+
+            if (Tasknameduplicate.Count == 0 && WorkflownotPrsnt.Count == 0)
+            {
+                var tasklist = WorkBasketTaskList.Where(x => x.WorkflowId != 0).Select(tsk => new WorkbasketTask()
+                {
+                    TaskName = tsk.TaskName,
+                    WorkflowId = tsk.WorkflowId,
+                    Frequency = tsk.Frequency,
+                    TenantId = tsk.TenantId,
+                    TeamId = tsk.TeamId,
+                    PeriodId = tsk.PeriodId,
+                    StatusId = context.WorkflowActions.Where(rec => rec.WorkflowId == tsk.WorkflowId && rec.Status == "Pending" && rec.WorkflowLevel == 0).Select(a => a.Id).FirstOrDefault(),
+                    TimeZone = TimeZone,
+                    PriorityId = tsk.PriorityId,
+                    Description = tsk.Description,
+                    CreatedBy = tsk.CreatedBy,
+                    CreatedOn = tsk.CreatedOn
+                }).ToList();
+                context.WorkbasketTasks.AddRange(tasklist);
+                context.SaveChanges();
+
+                List<TaskUploadLevelList> LevelList = (from ul in tasklist
+                                                       select new { Id = ul.Id, WorkFlowId = ul.WorkflowId, ul.TenantId, CreatedBy = ul.CreatedBy, CreatedOn = ul.CreatedOn }).Select
+                                                       (x => new TaskUploadLevelList
+                                                       {
+                                                           TaskId = x.Id,
+                                                           WorkflowId = x.WorkFlowId,
+                                                           Level = context.Workflows.Where(rec => rec.Id == x.WorkFlowId).Select(a => a.Levels).FirstOrDefault(),
+                                                           TenantId = x.TenantId,
+                                                           CreatedBy = x.CreatedBy,
+                                                           CreatedOn = x.CreatedOn
+                                                       }).ToList();
+
+                var Maxlevel = LevelList.Select(a => a.Level).Max();
+
+
+                for (int i = 0; i <= Maxlevel; i++)
+                {
+                    var TaskUser = LevelList.Where(x => x.Level >= i).Select(Tskuser => new WorkbasketTaskUser()
+                    // var tasklist = list.Where(x => x.WorkflowId != 0).Select(tsk => new Task()
+                    {
+                        WorkbasketTaskId = Tskuser.TaskId,
+                        WFLevel = Convert.ToInt16(i),
+                        TenantId = Tskuser.TenantId,
+                        CreatedBy = Tskuser.CreatedBy,
+                        CreatedOn = Tskuser.CreatedOn
+                    }).ToList();
+                    context.WorkbasketTaskUsers.AddRange(TaskUser);
+                    context.SaveChanges();
+
+                }
+
+            }
+            return task;
+
+
+        }
+        public List<SelectListItem> GetLevelCaption(int TaskId)
+        {
+
+            List<SelectListItem> result = new List<SelectListItem>();
+            var items = (from tsk in context.Tasks
+                         join wfl in context.WorkflowLevels on tsk.WorkflowId equals wfl.WorkflowId
+                         where tsk.Id == TaskId
+                         select new { wfl.Level, wfl.LevelText }
+                 ).ToList();
+
+            foreach (var item in items)
+            {
+                SelectListItem it = new SelectListItem();
+                it.Value = item.Level.ToString();
+                it.Text = item.LevelText;
+                result.Add(it);
+            }
+            return result;
+        }
+        public List<SelectListItem> GetLevelCaptionAdhoc(int WorkbaskeTasktId)
+        {
+
+            List<SelectListItem> result = new List<SelectListItem>();
+            var items = (from wb in context.WorkbasketTasks
+                         join wfl in context.WorkflowLevels on wb.WorkflowId equals wfl.WorkflowId
+                         where wb.Id == WorkbaskeTasktId
+                         select new { wfl.Level, wfl.LevelText }
+                 ).ToList();
+
+            foreach (var item in items)
+            {
+                SelectListItem it = new SelectListItem();
+                it.Value = item.Level.ToString();
+                it.Text = item.LevelText;
+                result.Add(it);
+            }
+            return result;
+        }
+
+        public Task PutRegularTask(Task entityNew)
+        {
+            Task entityOld = context.Tasks.First(i => i.Id == entityNew.Id);
+            TaskTemplateuser Tasktemplate = new TaskTemplateuser();
+
+            if (entityOld.WorkflowId != entityNew.WorkflowId)
+            {
+
+                var levels = context.Workflows.Where(rec => rec.Id == entityNew.WorkflowId).Select(a => a.Levels).FirstOrDefault();
+                context.TaskTemplateusers.Where(a => a.TaskId == entityNew.Id && a.IsDeleted == false)
+                    .Update(x => new TaskTemplateuser { IsDeleted = true, DeletedBy = entityNew.UpdatedBy, DeletedOn = DateTime.UtcNow.ToString() });
+
+                CreateAudit(entityOld, entityNew);
+
+                entityOld.TaskName = entityNew.TaskName;
+                entityOld.WorkflowId = entityNew.WorkflowId;
+                entityOld.PriorityId = entityNew.PriorityId;
+                entityOld.Description = entityNew.Description;
+                entityOld.UpdatedBy = entityNew.UpdatedBy;
+                entityOld.UpdatedOn = entityNew.UpdatedOn;
+                entityOld.Frequency = entityNew.Frequency;
+                context.SaveChanges();
+                for (int i = 0; i <= levels; i++)
+                {
+                    Tasktemplate.TaskId = entityNew.Id;
+                    Tasktemplate.Level = i;
+                    Tasktemplate.TenantId = entityNew.TenantId;
+                    Tasktemplate.CreatedBy = entityNew.UpdatedBy;
+                    Tasktemplate.CreatedOn = DateTime.UtcNow;
+                    context.TaskTemplateusers.Add(Tasktemplate);
+                    context.SaveChanges();
+
+                }
+                return entityNew;
+            }
+            else
+            {
+                Task entityNewOld = context.Tasks.First(i => i.Id == entityNew.Id);
+                CreateAudit(entityNewOld, entityNew);
+
+                entityOld.TaskName = entityNew.TaskName;
+                entityOld.WorkflowId = entityNew.WorkflowId;
+                entityOld.PriorityId = entityNew.PriorityId;
+                entityOld.Description = entityNew.Description;
+                entityOld.UpdatedBy = entityNew.UpdatedBy;
+                entityOld.UpdatedOn = entityNew.UpdatedOn;
+                entityOld.Frequency = entityNew.Frequency;
+
+                context.SaveChanges();
+                return entityNew;
+            }
+
+        }
+
+        public void CreateAudit(Task entityOld, Task entityNew)
+        {
+            var tenantId = entityNew.TenantId;
+            var tableName = "Task";
+            if (entityOld.TaskName != entityNew.TaskName)
+            {
+                var culmName = "TaskName";
+                LocationClass emp = new LocationClass();
+                emp.CreateAuditTrail(entityOld.Id, entityOld.TaskName, entityNew.TaskName, entityNew.UpdatedBy, tableName, culmName, tenantId);
+            }
+            if (entityOld.WorkflowId != entityNew.WorkflowId)
+            {
+                var culmName = "WorkflowId";
+                LocationClass emp = new LocationClass();
+                emp.CreateAuditTrail(entityOld.Id, entityOld.WorkflowId.ToString(), entityNew.WorkflowId.ToString(), entityNew.UpdatedBy, tableName, culmName, tenantId);
+            }
+            if (entityOld.PriorityId != entityNew.PriorityId)
+            {
+                var culmName = "PriorityId";
+                LocationClass emp = new LocationClass();
+                emp.CreateAuditTrail(entityOld.Id, entityOld.PriorityId.ToString(), entityNew.PriorityId.ToString(), entityNew.UpdatedBy, tableName, culmName, tenantId);
+            }
+            if (entityOld.Description != entityNew.Description)
+            {
+                var culmName = "Description";
+                LocationClass emp = new LocationClass();
+                emp.CreateAuditTrail(entityOld.Id, entityOld.Description, entityNew.Description, entityNew.UpdatedBy, tableName, culmName, tenantId);
+            }
+            if (entityOld.Frequency != entityNew.Frequency)
+            {
+                var culmName = "Frequency";
+                LocationClass emp = new LocationClass();
+                emp.CreateAuditTrail(entityOld.Id, entityOld.Frequency, entityNew.Frequency, entityNew.UpdatedBy, tableName, culmName, tenantId);
+            }
+
+        }
+
+        public int DeleteRegularTask(int Id, string DeletedBy)
+        {
+            Task objLocation = context.Tasks.Where(a => a.Id == Id).FirstOrDefault();
+
+            if (context.DependentTasks.Where(i => i.TaskId == Id && i.IsDeleted == false).Any())
+            {
+                return 1;
+            }
+            else
+            {
+                objLocation.IsDeleted = true;
+                objLocation.DeletedOn = DateTime.UtcNow;
+                objLocation.DeletedBy = DeletedBy;
+
+                context.SaveChanges();
+                return 0;
+            }
+        }
+        public int GetTotalTaskCounts(int buId)
+
+        {
+            int result = context.Tasks.Where(a => a.TenantId == buId && a.IsDeleted == false).Count();
+            return result;
+        }
+        public List<Priority> GetPrioritylist()
+        {
+            return context.Priorities.ToList();
+        }
+
+
+        public List<ECloseBL.Entities.WorkbasketTaskentity> ExportAdhocTask(int TeamId, int jtStartIndex, int jtPageSize, string TaskName)
+        {
+            if (TaskName != "")
+            {
+                var AdhocTaskList = context.WorkbasketTasks.Where(rec => rec.TeamId == TeamId && rec.TaskName == TaskName && rec.TaskId == null && rec.IsDeleted == false).OrderByDescending(a => a.Id)
+                .Select(a => new ECloseBL.Entities.WorkbasketTaskentity
+                {
+                    Id = a.Id,
+                    TaskName = a.TaskName,
+                    Description = a.Description,
+                    TeamName = a.Team.TeamName,
+                    PeriodText = a.Period.PeriodText,
+                    PriorityId = a.PriorityId,
+                    WorkflowId = a.WorkflowId,
+                    Priority = context.Priorities.Where(r => r.Id == a.PriorityId).Select(r => r.PriorityName).FirstOrDefault(),
+                    Workflow = context.Workflows.Where(w => w.Id == a.WorkflowId).Select(w => w.WorkflowName).FirstOrDefault(),
+                }).ToList();
+                return AdhocTaskList;
+            }
+            else
+            {
+                var AdhocTaskList = context.WorkbasketTasks.Where(rec => rec.TeamId == TeamId && rec.TaskId == null && rec.IsDeleted == false).OrderByDescending(a => a.Id)
+                                .Select(a => new ECloseBL.Entities.WorkbasketTaskentity
+                                {
+                                    Id = a.Id,
+                                    TaskName = a.TaskName,
+                                    Description = a.Description,
+                                    TeamName = a.Team.TeamName,
+                                    PeriodText = a.Period.PeriodText,
+                                    PriorityId = a.PriorityId,
+                                    WorkflowId = a.WorkflowId,
+                                    Priority = context.Priorities.Where(r => r.Id == a.PriorityId).Select(r => r.PriorityName).FirstOrDefault(),
+                                    Workflow = context.Workflows.Where(w => w.Id == a.WorkflowId).Select(w => w.WorkflowName).FirstOrDefault(),
+                                }).ToList();
+                return AdhocTaskList;
+            }
+        }
+
+        public List<ECloseBL.Entities.Task> ExportRegularTask(int TeamId, int jtStartIndex, int jtPageSize, string TaskName)
+        {
+
+            if (TaskName != "")
+            {
+                var Tasklist = context.Tasks.Where(rec => rec.TeamId == TeamId && rec.TaskName == TaskName && rec.IsDeleted == false).OrderByDescending(a => a.Id)
+                                    .Select(a => new ECloseBL.Entities.Task
+                                    {
+                                        Id = a.Id,
+                                        TaskNumber = a.TaskNumber,
+                                        TaskName = a.TaskName,
+                                        TeamName = a.Team.TeamName,
+                                        TeamId = a.TeamId,
+                                        Frequency = a.Frequency,
+                                        WorkflowId = a.WorkflowId,
+                                        IsActive = a.IsActive,
+                                        IsDeleted = a.IsDeleted,
+                                        PriorityId = a.PriorityId,
+                                        Priority = context.Priorities.Where(r => r.Id == a.PriorityId).Select(r => r.PriorityName).FirstOrDefault(),
+                                        Workflow = context.Workflows.Where(w => w.Id == a.WorkflowId).Select(w => w.WorkflowName).FirstOrDefault(),
+                                    }).ToList();
+                return Tasklist;
+            }
+            else
+            {
+                var Tasklist = context.Tasks.Where(rec => rec.TeamId == TeamId && rec.IsDeleted == false).OrderByDescending(a => a.Id)
+                                    .Select(a => new ECloseBL.Entities.Task
+                                    {
+                                        Id = a.Id,
+                                        TaskNumber = a.TaskNumber,
+                                        TaskName = a.TaskName,
+                                        TeamName = a.Team.TeamName,
+                                        TeamId = a.TeamId,
+                                        Frequency = a.Frequency,
+                                        WorkflowId = a.WorkflowId,
+                                        IsActive = a.IsActive,
+                                        IsDeleted = a.IsDeleted,
+                                        PriorityId = a.PriorityId,
+                                        Priority = context.Priorities.Where(r => r.Id == a.PriorityId).Select(r => r.PriorityName).FirstOrDefault(),
+                                        Workflow = context.Workflows.Where(w => w.Id == a.WorkflowId).Select(w => w.WorkflowName).FirstOrDefault(),
+                                    }).ToList();
+                return Tasklist;
+            }
+            
+        }
+    }
+}
